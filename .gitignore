@@ -1,8 +1,0 @@
-.env
-/node_modules/*
-*.log*
-dist
-
-package-lock.json
-package.json
-
