@@ -2,8 +2,16 @@ import express from "express";
 import "./db/db.js"; // MongoDB connection
 import userRoutes from "./routes/users.js";
 import submissionRoutes from "./routes/fetchStudentRouter.js";
+import cors from "cors";
 
 const app = express();
+
+// Allow your frontend origin
+app.use(cors({
+  origin: process.env.FRONTEND_URL,   // React frontend
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,  // if you’re sending cookies/auth
+}));
 
 app.use(express.json());
 

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const key = process.env.TOKEN || "your_secret_key";
+const key = process.env.TOKEN_SECRET || "your_secret_key";
 
 function authMiddleware(req, res, next) {
   // Get the Authorization header
