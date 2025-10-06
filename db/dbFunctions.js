@@ -8,7 +8,7 @@ let db = null;
 /**
  * Connect once and reuse DB
  */
-export async function getDB() {
+export async function getStudentDB() {
   if (db) return db;
   await client.connect();
   db = client.db("students");
@@ -20,7 +20,7 @@ export async function getDB() {
  */
 export async function findUserByEmail(email) {
   try {
-    const db = await getDB();
+    const db = await getStudentDB();
     const collection = db.collection("submissions");
     const student = await collection.findOne({ email });
     return student;
@@ -34,7 +34,7 @@ export async function findUserByEmail(email) {
  * Upload a PDF to GridFS and return its file ID
  */
 export async function uploadPDF(file, email) {
-  const db = await getDB();
+  const db = await getStudentDB();
   const bucket = new GridFSBucket(db, { bucketName: "pdfs" });
 
   return new Promise((resolve, reject) => {
@@ -43,12 +43,54 @@ export async function uploadPDF(file, email) {
       metadata: { email },
     });
 
-    uploadStream.end(file.buffer, (err, fileDoc) => {
-      if (err) {
-        console.error("Error uploading file to GridFS:", err);
-        return reject(err);
-      }
-      resolve(fileDoc);
+    const fileId = uploadStream.id; // Get the file’s ObjectId immediately
+
+    uploadStream.on("error", (err) => {
+      console.error("Error uploading file to GridFS:", err);
+      reject(err);
     });
+
+    uploadStream.on("finish", () => {
+      resolve(fileId); // Resolve with just the file ID
+    });
+
+    uploadStream.end(file.buffer);
   });
+}
+
+/**
+ * 
+ * @param email 
+ * @param name 
+ * @param room 
+ * @param fileIds 
+ * 
+ * Upload submission details to the database
+ */
+
+export async function uploadSubmission(email, name, room, fileIds){
+  const db = await getStudentDB();
+  const collection = db.collection("submissions");
+
+  const submission = {
+    email,
+    name,
+    room,
+    files: fileIds,
+    submittedAt: new Date(),
+  };
+
+  await collection.updateOne(
+    { email },
+    { $set: submission },
+    { upsert: true }
+  );
+
+}
+
+export async function fetchAllSubmissions(){
+  const db = await getStudentDB();
+  const collection = db.collection("submissions");
+  const submissions = await collection.find({}).toArray();
+  return submissions;
 }
