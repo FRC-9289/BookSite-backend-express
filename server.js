@@ -1,15 +1,31 @@
-const express = require('express');
+import express from "express";
+import "./db/db.js";
+import userRoutes from "./routes/users.js";
+import submissionRoutes from "./routes/fetchStudentRouter.js";
+import studentRoutes from "./routes/studentRouter.js";
+import roomsRoutes from "./routes/roomsRouter.js";
+import cors from "cors";
+
 const app = express();
-require('./db/db'); // MongoDB connection
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL, 
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
 
 app.use(express.json());
 
-const userRoutes = require('./routes/users');
-app.use('/', require('./routes/index'));
-app.use('/users', userRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/submissions", submissionRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/rooms", roomsRoutes);
 
-// Listen on port 0 (random free port)
-const server = app.listen(8000, () => {
-  const port = server.address().port; // get actual port
-  console.log(`Server running on http://localhost:${port}`);
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", message: "Server is healthy" });
+});
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });

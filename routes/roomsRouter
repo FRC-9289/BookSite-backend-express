@@ -1,0 +1,30 @@
+const express = require('express');
+const router = express.Router();
+const Room = require('../models/Room');
+const auth = require('../middleware/authMiddleware');
+
+router.get('/rooms', auth, async (req, res) => {
+  try {
+    const { room } = req.query;
+
+    if (room) {
+      const roomDoc = await Room.findOne({ room }).lean();
+      if (!roomDoc) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+
+      return res.json({ students: roomDoc.students || [] });
+    }
+
+    const openRooms = (await Room.find().select('room students').lean())
+      .filter(r => (r.students?.length || 0) < 2)
+      .map(r => r.room);
+
+    return res.json({ openRooms });
+  } catch (err) {
+    console.error('Error in /api/rooms:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
