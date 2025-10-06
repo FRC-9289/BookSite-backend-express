@@ -7,8 +7,8 @@ const app = express();
 
 app.use(express.json());
 
-app.use("/users", userRoutes);
-app.use("/submissions", submissionRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/submissions", submissionRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
