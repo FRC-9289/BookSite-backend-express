@@ -8,6 +8,7 @@ const { Readable } = require('stream');
 const fs = require('fs');
 const path = require('path');
 const auth = require('../middleware/authMiddleware');
+const nodemailer = require('nodemailer');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -37,6 +38,33 @@ router.post('/studentpost', upload.fields([
       })))
     });
     await user.save();
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail", // or use 'smtp.mailtrap.io', etc.
+      auth: {
+        user: email.env.EMAIL,
+        pass: email.env.PASS,
+      },
+    });
+
+    // Compose email
+    const mailOptions = {
+      from: `"The Village Robotics Team" <${email.env.EMAIL}>`,
+      to: email,
+      subject: "Submission Received",
+      html: `
+        <div style="font-family:sans-serif;">
+          <h2>Hello Hooman,</h2>
+          <p>This is a confirmation of your submission.</p>
+          ${room}
+          <br/>
+          <p>– The Village Robotics Team</p>
+        </div>
+      `,
+    };
+
+    // Send the email
+    await transporter.sendMail(mailOptions);
 
     res.status(201).json({
       message: 'Form data received successfully',
