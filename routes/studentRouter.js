@@ -7,7 +7,7 @@ const { FormDataEncoder } = require('form-data-encoder');
 const { Readable } = require('stream');
 const fs = require('fs');
 const path = require('path');
-const auth = require('../middleware/authMiddleware');s
+const auth = require('../middleware/authMiddleware');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
