@@ -1,15 +1,21 @@
-const express = require('express');
+import express from "express";
+import "./db/db.js"; // MongoDB connection
+import userRoutes from "./routes/users.js";
+import submissionRoutes from "./routes/fetchStudentRouter.js";
+
 const app = express();
-require('./db/db'); // MongoDB connection
 
 app.use(express.json());
 
-const userRoutes = require('./routes/users');
-app.use('/', require('./routes/index'));
-app.use('/users', userRoutes);
+app.use("/users", userRoutes);
+app.use("/submissions", submissionRoutes);
 
-// Listen on port 0 (random free port)
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", message: "Server is healthy" });
+});
+
 const server = app.listen(8000, () => {
-  const port = server.address().port; // get actual port
+  const port = server.address().port;
   console.log(`Server running on http://localhost:${port}`);
 });
