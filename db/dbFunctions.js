@@ -1,46 +1,96 @@
-const { connectToDB } = require('./db');
+import { MongoClient, GridFSBucket } from "mongodb";
+
+const uri = "mongodb://localhost:27017";
+export const client = new MongoClient(uri);
+
+let db = null;
 
 /**
- * List all collections in the database
- * @param {string} dbName
+ * Connect once and reuse DB
  */
-async function listCollections(dbName) {
-  const db = await connectToDB(dbName);
-  const collections = await db.listCollections().toArray();
-  console.log("Collections:");
-  for (const col of collections) {
-    console.log(col.name);
+export async function getStudentDB() {
+  if (db) return db;
+  await client.connect();
+  db = client.db("students");
+  return db;
+}
+
+/**
+ * Find a user by email
+ */
+export async function findUserByEmail(email) {
+  try {
+    const db = await getStudentDB();
+    const collection = db.collection("submissions");
+    const student = await collection.findOne({ email });
+    return student;
+  } catch (err) {
+    console.error("Error fetching student:", err);
+    return null;
   }
 }
 
 /**
- * Fetch all documents from a collection
- * @param {string} dbName
- * @param {string} collectionName
- * @returns {Promise<Array>}
+ * Upload a PDF to GridFS and return its file ID
  */
-async function getAllDocuments(dbName, collectionName) {
-  const db = await connectToDB(dbName);
-  const collection = db.collection(collectionName);
-  const documents = await collection.find({}).toArray();
-  return documents;
+export async function uploadPDF(file, email) {
+  const db = await getStudentDB();
+  const bucket = new GridFSBucket(db, { bucketName: "pdfs" });
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = bucket.openUploadStream(file.originalname, {
+      contentType: file.mimetype,
+      metadata: { email },
+    });
+
+    const fileId = uploadStream.id; // Get the file’s ObjectId immediately
+
+    uploadStream.on("error", (err) => {
+      console.error("Error uploading file to GridFS:", err);
+      reject(err);
+    });
+
+    uploadStream.on("finish", () => {
+      resolve(fileId); // Resolve with just the file ID
+    });
+
+    uploadStream.end(file.buffer);
+  });
 }
 
 /**
- * Insert one or more documents into a collection
- * @param {string} dbName
- * @param {string} collectionName
- * @param {Array|Object} docs
+ * 
+ * @param email 
+ * @param name 
+ * @param room 
+ * @param fileIds 
+ * 
+ * Upload submission details to the database
  */
-async function insertDocuments(dbName, collectionName, docs) {
-  const db = await connectToDB(dbName);
-  const collection = db.collection(collectionName);
-  if (Array.isArray(docs)) {
-    await collection.insertMany(docs);
-  } else {
-    await collection.insertOne(docs);
-  }
-  console.log(`Inserted into ${collectionName}`);
+
+export async function uploadSubmission(email, name, room, fileIds){
+  const db = await getStudentDB();
+  const collection = db.collection("submissions");
+
+  const submission = {
+    email,
+    name,
+    room,
+    files: fileIds,
+    submittedAt: new Date(),
+  };
+
+  await collection.updateOne(
+    { email },
+    { $set: submission },
+    { upsert: true }
+  );
+
 }
 
-module.exports = { listCollections, getAllDocuments, insertDocuments };
+export async function fetchAllSubmissions(){
+  const db = await getStudentDB();
+  const collection = db.collection("submissions");
+  const submissions = await collection.find({}).toArray();
+  return submissions;
+}
