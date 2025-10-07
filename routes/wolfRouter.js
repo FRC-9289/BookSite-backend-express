@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { studentPOST, studentGET } from "../controllers/wolf.js";
+import { studentPOST, studentGET, roomGET, roomsGET } from "../controllers/wolf.js";
 
 const router = Router();
 
@@ -14,4 +14,8 @@ router.post("/student-post", authMiddleware, upload.fields([
   { name: "file3", maxCount: 1 }
 ]), studentPOST);
 
+router.get("/room-get", authMiddleware, roomGET);
+router.get("/rooms-get", authMiddleware, roomsGET);
+
 export default router;
+//Wolfram121

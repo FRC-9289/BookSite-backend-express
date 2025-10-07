@@ -1,22 +1,24 @@
-const { uploadPDF, uploadSubmission, findUserByEmail } = require('../db/dbFunctions');
-const { FormData } = require('formdata-node');
-const { FormDataEncoder } = require('form-data-encoder');
-const { Readable } = require('stream');
+const {
+  getGridFSBucket,
+  uploadPDF,
+  studentPOST: studentSave,
+  studentGET: studentFetch,
+  roomGET: roomFetch,
+  roomsGET: roomsFetch
+} = require("../db/dbFunctions");
+
+const { FormData } = require("formdata-node");
+const { FormDataEncoder } = require("form-data-encoder");
+const { Readable } = require("stream");
 
 async function studentPOST(req, res) {
   try {
-    const { email, room } = req.body;
-    const files = req.files;
+    const { email, room, name } = req.body;
+    const files = Object.values(req.files || {}).flat();
 
-    if (!email || !room || !files || files.length === 0) {
-      return res.status(400).json({ error: 'Missing required fields or files' });
+    if (!email || !room || !name || files.length === 0) {
+      return res.status(400).json({ error: "Missing required fields or files" });
     }
-
-    console.log('Received:', {
-      email,
-      room,
-      files: files.map(f => f.originalname)
-    });
 
     const fileIds = [];
     for (const file of files) {
@@ -24,64 +26,82 @@ async function studentPOST(req, res) {
       fileIds.push(fileId);
     }
 
-    await uploadSubmission(email, name, room, fileIds);
+    await studentSave(email, name, room, fileIds);
 
-    res.status(201).json({
-      message: 'Submission uploaded successfully',
-      fileIds
-    });
+    res.status(201).json({ message: "Student record saved", fileIds });
   } catch (err) {
-    console.error('Error in studentPOST:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error in studentPOST:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function studentGET(req, res) {
   try {
     const { email } = req.query;
-    if (!email) {
-      return res.status(400).json({ error: 'Missing email query parameter' });
-    }
+    if (!email) return res.status(400).json({ error: "Missing email query parameter" });
 
-    const student = await findUserByEmail(email);
-    if (!student) {
-      return res.status(404).json({ error: 'Student not found' });
-    }
+    const student = await studentFetch(email);
+    if (!student) return res.status(404).json({ error: "Student not found" });
 
     const form = new FormData();
-    form.set('data', new Blob([JSON.stringify({ student })], { type: 'application/json' }));
+    form.set("data", new Blob([JSON.stringify({ student })], { type: "application/json" }));
 
     const pdfFileIds = (student.files || []).slice(0, 3);
     for (let i = 0; i < pdfFileIds.length; i++) {
-      const fileStream = await getGridFSBuffer(pdfFileIds[i]);
-      form.set(`pdf_${i}`, new Blob([fileStream], { type: 'application/pdf' }), `file_${i}.pdf`);
+      const fileBuffer = await getGridFSBuffer(pdfFileIds[i]);
+      form.set(`pdf_${i}`, new Blob([fileBuffer], { type: "application/pdf" }), `file_${i}.pdf`);
     }
 
     const encoder = new FormDataEncoder(form);
-    res.setHeader('Content-Type', encoder.contentType);
-    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader("Content-Type", encoder.contentType);
+    res.setHeader("Transfer-Encoding", "chunked");
 
     Readable.from(encoder.encode()).pipe(res);
   } catch (err) {
-    console.error('Error in studentGET:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error in studentGET:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function roomGET(req, res) {
+  try {
+    const { room } = req.query;
+    if (!room) return res.status(400).json({ error: "Missing room query parameter" });
+
+    const emails = await roomFetch(room);
+    res.status(200).json({ room, students: emails });
+  } catch (err) {
+    console.error("Error in roomGET:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function roomsGET(req, res) {
+  try {
+    const rooms = await roomsFetch();
+    res.status(200).json({ rooms });
+  } catch (err) {
+    console.error("Error in roomsGET:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function getGridFSBuffer(fileId) {
-  const { getGridFSBucket } = require('../db/db');
   const bucket = getGridFSBucket();
   const chunks = [];
 
   return new Promise((resolve, reject) => {
     const stream = bucket.openDownloadStream(fileId);
-    stream.on('data', chunk => chunks.push(chunk));
-    stream.on('error', err => reject(err));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on("data", chunk => chunks.push(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
   });
 }
 
 module.exports = {
   studentPOST,
-  studentGET
+  studentGET,
+  roomGET,
+  roomsGET
 };
+//Wolfram121
