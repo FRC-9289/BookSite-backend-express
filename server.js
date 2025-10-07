@@ -2,6 +2,7 @@ import express from "express";
 import "./db/db.js"; // MongoDB connection
 import userRoutes from "./routes/users.js";
 import submissionRoutes from "./routes/fetchStudentRouter.js";
+import roomRoutes from "./routes/rooms.js";
 import cors from "cors";
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(express.json());
 
 app.use("/api/users", userRoutes);
 app.use("/api/submissions", submissionRoutes);
+app.use("/api/rooms", roomRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
