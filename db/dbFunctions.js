@@ -6,7 +6,7 @@ export const client = new MongoClient(uri);
 let db = null;
 
 /**
- * Connect once and reuse DB
+ * Connect once and reuse student DB
  */
 export async function getStudentDB() {
   if (db) return db;
@@ -110,14 +110,17 @@ export async function uploadSubmission(email, name, room, fileIds, fileNames) {
   };
 
   const result = await collection.updateOne(
-    { email },
-    { $set: submission },
-    { upsert: true }
+    { email },        // find by email
+    { $set: submission }, // update document using $set
+    { upsert: true }  // create if not exists
   );
 
-  // If it was upserted (new document), return the upsertedId
-  return result.upsertedId ? result.upsertedId._id : (await collection.findOne({ email }))._id;
+  // Return the document _id
+  return result.upsertedId
+    ? result.upsertedId._id
+    : (await collection.findOne({ email }))._id;
 }
+
 
 
 export async function fetchAllSubmissions() {
@@ -161,7 +164,7 @@ export async function fetchAllSubmissions() {
 /**
  * Get all student emails in a specific room
  */
-export async function fetchRoom(room) {
+export async function fetchStudentByRoom(room) {
   if (!room) throw new Error("Room is required");
 
   const db = await getStudentDB();
@@ -179,6 +182,49 @@ export async function fetchAllRooms() {
   const db = await getStudentDB();
   const rooms = await db.collection("submissions")
     .distinct("room");
+
+  return rooms;
+}
+
+export async function postRooms(name, roomId, submissionId) {
+  const db = await getStudentDB();
+  const roomsCollection = db.collection("rooms");
+  
+  const bus = roomId[0]; // e.g., "1"
+  const gender = roomId[1] === "M" ? "Male" : "Female"; 
+  const roomNumber = roomId[2]; // e.g., "1"
+  
+  const student = {
+    Name: name,
+    submissionId
+  };
+  try{
+    // Use $push with a dynamic key
+    await roomsCollection.updateOne(
+      {}, // the first (and only) document
+      {
+        $push: {
+          [`${bus}.${gender}.${roomNumber}`]: student
+        },
+        $set: {
+          updatedAt: new Date()
+        }
+      }
+    );
+    
+    console.log(`Added student to ${bus}.${gender}.${roomNumber}`);
+    return { success: true };
+  } catch(error){
+    console.error("Error updating room:", error);
+    return { success: false, error };
+  }
+}
+
+export async function fetchAllRoomSubmissions(){
+  const db = await getStudentDB();
+  const roomsCollection = db.collection("rooms");
+  
+  const rooms = await roomsCollection.findOne({});
 
   return rooms;
 }

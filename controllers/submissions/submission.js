@@ -1,5 +1,5 @@
 // fetchStudents.js
-import { fetchStudentByEmail, uploadPDF, uploadSubmission, fetchAllSubmissions } from "../../db/dbFunctions.js";
+import { fetchStudentByEmail, uploadPDF, uploadSubmission, fetchAllSubmissions, postRooms } from "../../db/dbFunctions.js";
 import { connectToDB } from "../../db/db.js";
 import { GridFSBucket } from "mongodb";
 
@@ -24,6 +24,7 @@ export async function postSubmissions(req, res) {
     const fileIds = [];
     const fileNames = [];
 
+
     for (const file of req.files) {
       const fileId = await uploadPDF(file, email);
       console.log(`Uploaded ${file.originalname}`);
@@ -32,11 +33,11 @@ export async function postSubmissions(req, res) {
     }
 
     const submissionId = await uploadSubmission(email, name, room, fileIds, fileNames);
+    console.log("Submission Id: "+submissionId);
 
-    res.json({ 
-      message: "Submission uploaded successfully", 
-      submissionId 
-    });
+    const { success } = await postRooms(name, room,submissionId);
+
+    return res.status(200).json({ message: "Submission and room updated successfully", submissionId, roomUpdate: success });
 
   } catch (error) {
     console.error("Error uploading files:", error);
