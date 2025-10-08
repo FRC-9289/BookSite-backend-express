@@ -5,11 +5,9 @@ const student = new mongoose.Schema({
     type: String,
     required: true
   },
-  room: String
+  room: String,
+  files: [String]
 });
 
-const room = new mongoose.Schema({
-    students: [String]
-});
-
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('Student', student);
+//Wolfram121

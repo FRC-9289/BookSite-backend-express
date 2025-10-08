@@ -10,28 +10,67 @@ const {
 const { FormData } = require("formdata-node");
 const { FormDataEncoder } = require("form-data-encoder");
 const { Readable } = require("stream");
+const nodemailer = require('nodemailer');
 
 async function studentPOST(req, res) {
   try {
-    const { email, room, name } = req.body;
+    const { email, room } = req.body;
     const files = Object.values(req.files || {}).flat();
 
-    if (!email || !room || !name || files.length === 0) {
+    if (!email || !room || files.length === 0) {
       return res.status(400).json({ error: "Missing required fields or files" });
     }
 
     const fileIds = [];
     for (const file of files) {
-      const fileId = await uploadPDF(file, email);
-      fileIds.push(fileId);
+      fileIds.push(await uploadPDF(file, email));
     }
 
-    await studentSave(email, name, room, fileIds);
+    await studentSave(email, room, fileIds);
 
-    res.status(201).json({ message: "Student record saved", fileIds });
+    const savedData = await studentFetch(email);
+    const isMatch =
+      savedData &&
+      savedData.room === room &&
+      Array.isArray(savedData.pdfs) &&
+      savedData.pdfs.length === fileIds.length;
+
+    if (!isMatch) {
+      console.error('Verification failed:', savedData);
+      return res.status(500).json({ error: 'Verification failed after saving.' });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: `"The Village Robotics Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Submission Received',
+      html: `
+        <div style="font-family:sans-serif;">
+          <h2>Hello ${email},</h2>
+          <p>Thanks for your submission of your form to us!</p>
+          <p>We’ll review your request and get back to you soon.</p>
+          <p>Please keep checking this email inbox in the next coming days for approval from us.</p>
+          <br/>
+          <p>– The Village Robotics Team</p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Confirmation email sent to ${email}`);
+
+    res.status(201).json({ message: 'Student record saved and email sent', fileIds });
   } catch (err) {
-    console.error("Error in studentPOST:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('Error in studentPOST:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -79,7 +118,7 @@ async function roomGET(req, res) {
 async function roomsGET(req, res) {
   try {
     const rooms = await roomsFetch();
-    res.status(200).json({ rooms });
+    res.status(200).json(rooms);
   } catch (err) {
     console.error("Error in roomsGET:", err);
     res.status(500).json({ error: "Internal server error" });

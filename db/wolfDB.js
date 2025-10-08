@@ -32,9 +32,8 @@ async function uploadPDF(file, email) {
   });
 }
 
-async function studentPOST(email, name, room, fileIds) {
-  const db = await getStudentDB();
-  const collection = db.collection("students");
+async function studentPOST(email, room, fileIds) {
+  const collection = (await getStudentDB()).collection("students");
 
   const student = {
     email,
@@ -47,26 +46,36 @@ async function studentPOST(email, name, room, fileIds) {
 }
 
 async function studentGET(email) {
-  const db = await getStudentDB();
-  return db.collection("students").findOne({ email });
+  return (await getStudentDB()).collection("students").findOne({ email });
 }
 
 async function studentsGET() {
-  const db = await getStudentDB();
-  return db.collection("students").studentGET({}).toArray();
+  return (await getStudentDB()).collection("students").studentGET({}).toArray();
 }
 
 async function roomGET(roomKey) {
-  const db = await getStudentDB();
-  const students = await db.collection("students")
+  const students = await (await getStudentDB()).collection("students")
     .studentGET({ room: roomKey }, { projection: { email: 1, _id: 0 } })
     .toArray();
   return students.map(s => s.email);
 }
 
 async function roomsGET() {
-  const db = await getStudentDB();
-  return db.collection("students").distinct("room");
+  const students = await (await getStudentDB())
+    .collection('students')
+    .find({}, { projection: { room: 1, email: 1 } })
+    .toArray();
+
+  const roomMap = {};
+
+  for (const s of students) {
+    if (!s.room) continue;
+    if (!roomMap[s.room]) roomMap[s.room] = [];
+    roomMap[s.room].push(s.email);
+  }
+
+  const result = Object.entries(roomMap).map(([room, emails]) => [room, ...emails]);
+  return result;
 }
 
 module.exports = {
