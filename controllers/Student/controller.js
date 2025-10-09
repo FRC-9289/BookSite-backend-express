@@ -1,17 +1,18 @@
-const {
+import {
   getGridFSBucket,
   uploadPDF,
-  studentPOST: studentSave,
-  studentGET: studentFetch,
-  roomGET: roomFetch,
-  roomsGET: roomsFetch
-} = require("../db/dbFunctions");
-const { Grade } = require("../models/student-grade");
+  studentPOST as studentSave,
+  studentGET as studentFetch,
+  roomGET as roomFetch,
+  roomsGET as roomsFetch
+} from "../../db/dbFunctions.js";
 
-const { FormData } = require("formdata-node");
-const { FormDataEncoder } = require("form-data-encoder");
-const { Readable } = require("stream");
-const nodemailer = require('nodemailer');
+import { Grade } from "../../models/student-grade.js";
+
+import { FormData } from "formdata-node";
+import { FormDataEncoder } from "form-data-encoder";
+import { Readable } from "stream";
+import nodemailer from "nodemailer";
 
 async function studentPOST(req, res) {
   try {
@@ -118,7 +119,7 @@ async function studentGET(req, res) {
 
     const pdfFileIds = (student.files || []).slice(0, 3);
     for (let i = 0; i < pdfFileIds.length; i++) {
-      const fileBuffer = await getGridFSBuffer(pdfFileIds[i]);
+      const fileBuffer = await getGridFSBucket(pdfFileIds[i]);
       form.set(
         `pdf_${i}`,
         new Blob([fileBuffer], { type: "application/pdf" }),
@@ -200,7 +201,7 @@ async function roomsPOST(req, res) {
   }
 }
 
-module.exports = {
+export{
   studentPOST,
   studentGET,
   roomGET,

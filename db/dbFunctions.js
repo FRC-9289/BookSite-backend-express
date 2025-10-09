@@ -46,6 +46,7 @@ async function studentPOST(gradeNumber, email, room, fileIds) {
     room,
     files: fileIds,
     updatedAt: new Date(),
+    status: "pending"
   };
 
   await collection.updateOne(

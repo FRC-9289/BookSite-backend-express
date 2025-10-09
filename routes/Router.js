@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { studentPOST, studentGET, roomGET, roomsGET } from "../controllers/controller.js";
+import { studentPOST, studentGET, roomGET, roomsGET } from "../controllers/Student/controller.js";
 
 const router = Router();
 
