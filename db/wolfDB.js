@@ -35,7 +35,7 @@ async function uploadPDF(file, email) {
 
 async function studentPOST(gradeNumber, email, room, fileIds) {
   const db = await getStudentDB();
-  const collection = db.collection("students");
+  const collection = db.collection("data");
 
   const student = {
     grade: gradeNumber,
@@ -54,20 +54,20 @@ async function studentPOST(gradeNumber, email, room, fileIds) {
 
 async function studentGET(gradeNumber, email) {
   return (await getStudentDB())
-    .collection("students")
+    .collection("data")
     .findOne({ grade: gradeNumber, email });
 }
 
 async function studentsGET(gradeNumber) {
   return (await getStudentDB())
-    .collection("students")
+    .collection("data")
     .find({ grade: gradeNumber })
     .toArray();
 }
 
 async function roomGET(gradeNumber, roomKey) {
   const students = await (await getStudentDB())
-    .collection("students")
+    .collection("data")
     .find(
       { grade: gradeNumber, room: roomKey },
       { projection: { email: 1, _id: 0 } }
@@ -82,7 +82,7 @@ async function roomsGET(gradeNumber) {
 
   
   const students = await db
-    .collection("students")
+    .collection("data")
     .find({ grade: gradeNumber }, { projection: { room: 1, email: 1 } })
     .toArray();
 

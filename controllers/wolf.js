@@ -6,6 +6,7 @@ const {
   roomGET: roomFetch,
   roomsGET: roomsFetch
 } = require("../db/wolfDB");
+const { Grade } = require("../models/Wolf");
 
 const { FormData } = require("formdata-node");
 const { FormDataEncoder } = require("form-data-encoder");
@@ -160,6 +161,39 @@ async function roomsGET(req, res) {
     res.status(200).json(rooms);
   } catch (err) {
     console.error("Error in roomsGET:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function roomsPOST(req, res) {
+  try {
+    const { grade, rooms } = req.body;
+
+    // --- Validation ---
+    if (!grade || !Array.isArray(rooms) || rooms.length === 0) {
+      return res.status(400).json({ error: "Missing or invalid grade or rooms array" });
+    }
+
+    const gradex = parseInt(grade, 10);
+    if (isNaN(gradex)) {
+      return res.status(400).json({ error: "Grade must be a valid integer" });
+    }
+
+    // --- Update or create Grade document ---
+    const result = await Grade.updateOne(
+      { grade: gradex },
+      { $set: { rooms } },
+      { upsert: true }
+    );
+
+    res.status(200).json({
+      message: "Rooms updated successfully",
+      grade: gradex,
+      rooms,
+      result,
+    });
+  } catch (err) {
+    console.error("Error in roomsPOST:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
