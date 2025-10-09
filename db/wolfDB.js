@@ -1,4 +1,5 @@
 const { MongoClient, GridFSBucket } = require("mongodb");
+const { Grade } = require("../models/Wolf");
 
 const uri = process.env.MONGO_URI || "mongodb://localhost:27017";
 const client = new MongoClient(uri, { useUnifiedTopology: true });
@@ -32,50 +33,75 @@ async function uploadPDF(file, email) {
   });
 }
 
-async function studentPOST(email, room, fileIds) {
-  const collection = (await getStudentDB()).collection("students");
+async function studentPOST(gradeNumber, email, room, fileIds) {
+  const db = await getStudentDB();
+  const collection = db.collection("students");
 
   const student = {
+    grade: gradeNumber,
     email,
     room,
     files: fileIds,
     updatedAt: new Date(),
   };
 
-  await collection.updateOne({ email }, { $set: student }, { upsert: true });
+  await collection.updateOne(
+    { grade: gradeNumber, email },
+    { $set: student },
+    { upsert: true }
+  );
 }
 
-async function studentGET(email) {
-  return (await getStudentDB()).collection("students").findOne({ email });
+async function studentGET(gradeNumber, email) {
+  return (await getStudentDB())
+    .collection("students")
+    .findOne({ grade: gradeNumber, email });
 }
 
-async function studentsGET() {
-  return (await getStudentDB()).collection("students").studentGET({}).toArray();
-}
-
-async function roomGET(roomKey) {
-  const students = await (await getStudentDB()).collection("students")
-    .studentGET({ room: roomKey }, { projection: { email: 1, _id: 0 } })
+async function studentsGET(gradeNumber) {
+  return (await getStudentDB())
+    .collection("students")
+    .find({ grade: gradeNumber })
     .toArray();
-  return students.map(s => s.email);
 }
 
-async function roomsGET() {
+async function roomGET(gradeNumber, roomKey) {
   const students = await (await getStudentDB())
-    .collection('students')
-    .find({}, { projection: { room: 1, email: 1 } })
+    .collection("students")
+    .find(
+      { grade: gradeNumber, room: roomKey },
+      { projection: { email: 1, _id: 0 } }
+    )
     .toArray();
 
-  const roomMap = {};
+  return students.map((s) => s.email);
+}
 
+async function roomsGET(gradeNumber) {
+  const db = await getStudentDB();
+
+  
+  const students = await db
+    .collection("students")
+    .find({ grade: gradeNumber }, { projection: { room: 1, email: 1 } })
+    .toArray();
+
+  
+  const gradeDoc = await Grade.findOne({ grade: gradeNumber });
+  const allRoomNames = new Set(gradeDoc?.rooms || []);
+
+  
+  const roomMap = {};
+  for (const room of allRoomNames) roomMap[room] = [];
+
+  
   for (const s of students) {
-    if (!s.room) continue;
-    if (!roomMap[s.room]) roomMap[s.room] = [];
-    roomMap[s.room].push(s.email);
+    if (s.room && roomMap[s.room]) {
+      roomMap[s.room].push(s.email);
+    }
   }
 
-  const result = Object.entries(roomMap).map(([room, emails]) => [room, ...emails]);
-  return result;
+  return Object.entries(roomMap); 
 }
 
 module.exports = {
@@ -86,6 +112,6 @@ module.exports = {
   studentGET,
   studentsGET,
   roomGET,
-  roomsGET
+  roomsGET,
 };
 //Wolfram121
