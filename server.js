@@ -1,26 +1,20 @@
 import express from "express";
 import "./db/db.js"; // MongoDB connection
-import userRoutes from "./routes/users.js";
-import submissionRoutes from "./routes/fetchStudentRouter.js";
-import roomRoutes from "./routes/rooms.js";
+import wolfRoutes from "./routes/Router.js";
 import cors from "cors";
 
 const app = express();
 
-// Allow your frontend origin
 app.use(cors({
-  origin: process.env.FRONTEND_URL,   // React frontend
+  origin: process.env.FRONTEND_URL,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true,  // if you’re sending cookies/auth
+  credentials: true,
 }));
 
 app.use(express.json());
 
-app.use("/api/users", userRoutes);
-app.use("/api/submissions", submissionRoutes);
-app.use("/api/rooms", roomRoutes);
+app.use('/api', wolfRoutes)
 
-// Health check
 app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });
 });
