@@ -1,68 +1,28 @@
-import { MongoClient, GridFSBucket } from "mongodb";
+const { MongoClient, GridFSBucket } = require("mongodb");
+const { Grade } = require("../models/student-grade");
 
-const uri = "mongodb://localhost:27017";
-export const client = new MongoClient(uri);
+const uri = process.env.MONGO_URI || "mongodb://localhost:27017";
+const client = new MongoClient(uri, { useUnifiedTopology: true });
 
 let db = null;
 
-/**
- * Connect once and reuse student DB
- */
-export async function getStudentDB() {
+async function getStudentDB() {
   if (db) return db;
+
   await client.connect();
   db = client.db("students");
+  console.log("✅ Connected to MongoDB:", uri);
+
   return db;
 }
 
-/**
- * Find a user by email
- */
-export async function fetchStudentByEmail(email) {
-  const db = await getStudentDB();
-  const collection = db.collection("submissions");
-  const submissions = await collection.find({email}).toArray();
-
-  const bucket = new GridFSBucket(db, { bucketName: "pdfs" });
-
-  const submissionsWithPDFs = await Promise.all(
-    submissions.map(async (submission) => {
-      const pdfFiles = await Promise.all(
-        (submission.files || []).map(async (fileObj) => {
-          const _id = typeof fileObj.fileId === "string" ? new ObjectId(fileObj.fileId) : fileObj.fileId;
-
-          const chunks = [];
-          await new Promise((resolve, reject) => {
-            bucket.openDownloadStream(_id)
-              .on("data", (chunk) => chunks.push(chunk))
-              .on("error", (err) => reject(err))
-              .on("end", () => resolve());
-          });
-
-          return {
-            fileId: _id,
-            fileName: fileObj.fileName,
-            pdfBase64: Buffer.concat(chunks).toString("base64")
-          };
-        })
-      );
-
-      return {
-        ...submission,
-        pdfFiles
-      };
-    })
-  );
-
-  return submissionsWithPDFs;
+async function getGridFSBucket() {
+  const database = await getStudentDB();
+  return new GridFSBucket(db, { bucketName: "files" });
 }
 
-/**
- * Upload a PDF to GridFS and return its file ID
- */
-export async function uploadPDF(file, email) {
-  const db = await getStudentDB();
-  const bucket = new GridFSBucket(db, { bucketName: "pdfs" });
+async function uploadPDF(file, email) {
+  const bucket = await getGridFSBucket();
 
   return new Promise((resolve, reject) => {
     const uploadStream = bucket.openUploadStream(file.originalname, {
@@ -70,161 +30,85 @@ export async function uploadPDF(file, email) {
       metadata: { email },
     });
 
-    const fileId = uploadStream.id; // Get the file’s ObjectId immediately
-
-    uploadStream.on("error", (err) => {
-      console.error("Error uploading file to GridFS:", err);
-      reject(err);
-    });
-
-    uploadStream.on("finish", () => {
-      resolve(fileId); // Resolve with just the file ID
-    });
-
+    uploadStream.on("error", reject);
+    uploadStream.on("finish", () => resolve(uploadStream.id));
     uploadStream.end(file.buffer);
   });
 }
 
-/**
- * 
- * @param email 
- * @param name 
- * @param room 
- * @param fileIds 
- * 
- * Upload submission details to the database
- */
-export async function uploadSubmission(email, name, room, fileIds, fileNames) {
+async function studentPOST(gradeNumber, email, room, fileIds) {
   const db = await getStudentDB();
-  const collection = db.collection("submissions");
+  const collection = db.collection("data");
 
-  const submission = {
+  const student = {
+    grade: gradeNumber,
     email,
-    name,
     room,
-    files: fileIds.map((id, idx) => ({
-      fileId: id,
-      fileName: fileNames[idx],
-    })),
-    submittedAt: new Date(),
+    files: fileIds,
+    updatedAt: new Date(),
   };
 
-  const result = await collection.updateOne(
-    { email },        // find by email
-    { $set: submission }, // update document using $set
-    { upsert: true }  // create if not exists
+  await collection.updateOne(
+    { grade: gradeNumber, email },
+    { $set: student },
+    { upsert: true }
   );
-
-  // Return the document _id
-  return result.upsertedId
-    ? result.upsertedId._id
-    : (await collection.findOne({ email }))._id;
 }
 
-
-
-export async function fetchAllSubmissions() {
-  const db = await getStudentDB();
-  const collection = db.collection("submissions");
-  const submissions = await collection.find({}).toArray();
-
-  const bucket = new GridFSBucket(db, { bucketName: "pdfs" });
-
-  const submissionsWithPDFs = await Promise.all(
-    submissions.map(async (submission) => {
-      const pdfFiles = await Promise.all(
-        (submission.files || []).map(async (fileObj) => {
-          const _id = typeof fileObj.fileId === "string" ? new ObjectId(fileObj.fileId) : fileObj.fileId;
-
-          const chunks = [];
-          await new Promise((resolve, reject) => {
-            bucket.openDownloadStream(_id)
-              .on("data", (chunk) => chunks.push(chunk))
-              .on("error", (err) => reject(err))
-              .on("end", () => resolve());
-          });
-
-          return {
-            fileId: _id,
-            fileName: fileObj.fileName,
-            pdfBase64: Buffer.concat(chunks).toString("base64")
-          };
-        })
-      );
-
-      return {
-        ...submission,
-        pdfFiles
-      };
-    })
-  );
-
-  return submissionsWithPDFs;
+async function studentGET(gradeNumber, email) {
+  return (await getStudentDB())
+    .collection("data")
+    .findOne({ grade: gradeNumber, email });
 }
-/**
- * Get all student emails in a specific room
- */
-export async function fetchStudentByRoom(room) {
-  if (!room) throw new Error("Room is required");
 
-  const db = await getStudentDB();
-  const students = await db.collection("submissions")
-    .find({ room })
+async function studentsGET(gradeNumber) {
+  return (await getStudentDB())
+    .collection("data")
+    .find({ grade: gradeNumber })
+    .toArray();
+}
+
+async function roomGET(gradeNumber, roomKey) {
+  const students = await (await getStudentDB())
+    .collection("data")
+    .find(
+      { grade: gradeNumber, room: roomKey },
+      { projection: { email: 1, _id: 0 } }
+    )
     .toArray();
 
-  return students
+  return students.map((s) => s.email);
 }
 
-/**
- * Get all unique rooms
- */
-export async function fetchAllRooms() {
+async function roomsGET(gradeNumber) {
   const db = await getStudentDB();
-  const rooms = await db.collection("submissions")
-    .distinct("room");
 
-  return rooms;
-}
+  
+  const students = await db
+    .collection("data")
+    .find({ grade: gradeNumber }, { projection: { room: 1, email: 1 } })
+    .toArray();
 
-export async function postRooms(name, roomId, submissionId) {
-  const db = await getStudentDB();
-  const roomsCollection = db.collection("rooms");
   
-  const bus = roomId[0]; // e.g., "1"
-  const gender = roomId[1] === "M" ? "Male" : "Female"; 
-  const roomNumber = roomId[2]; // e.g., "1"
-  
-  const student = {
-    Name: name,
-    submissionId
-  };
-  try{
-    // Use $push with a dynamic key
-    await roomsCollection.updateOne(
-      {}, // the first (and only) document
-      {
-        $push: {
-          [`${bus}.${gender}.${roomNumber}`]: student
-        },
-        $set: {
-          updatedAt: new Date()
-        }
-      }
-    );
-    
-    console.log(`Added student to ${bus}.${gender}.${roomNumber}`);
-    return { success: true };
-  } catch(error){
-    console.error("Error updating room:", error);
-    return { success: false, error };
+  const roomMap = {};
+  for (const student of students) {
+    if (!student.room) continue;
+    if (!roomMap[student.room]) roomMap[student.room] = [];
+    roomMap[student.room].push(student.email);
   }
+
+  console.log(roomMap);
+
+  return roomMap;
 }
 
-export async function fetchAllRoomSubmissions(){
-  const db = await getStudentDB();
-  const roomsCollection = db.collection("rooms");
-  
-  const rooms = await roomsCollection.findOne({});
-
-  return rooms;
-}
+module.exports = {
+  getStudentDB,
+  getGridFSBucket,
+  uploadPDF,
+  studentPOST,
+  studentGET,
+  studentsGET,
+  roomGET,
+  roomsGET,
+};
