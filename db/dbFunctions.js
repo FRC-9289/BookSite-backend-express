@@ -83,11 +83,11 @@ async function roomGET(gradeNumber, roomKey) {
     .collection("data")
     .find(
       { grade: gradeNumber, room: roomKey },
-      { projection: { name: 1, _id: 0 } }
+      { projection: { name: 1, _id: 0, status : 1} }
     )
     .toArray();
 
-  return students.map((s) => s.name);
+  return students.map((s) => ({"name" : s.name, "status" : s.status}));
 }
 
 async function roomsGET(gradeNumber) {
@@ -96,7 +96,7 @@ async function roomsGET(gradeNumber) {
   
   const students = await db
     .collection("data")
-    .find({ grade: gradeNumber }, { projection: { room: 1, email: 1 } })
+    .find({ grade: gradeNumber }, { projection: { room: 1, email: 1, name : 1} })
     .toArray();
 
   
@@ -104,7 +104,10 @@ async function roomsGET(gradeNumber) {
   for (const student of students) {
     if (!student.room) continue;
     if (!roomMap[student.room]) roomMap[student.room] = [];
-    roomMap[student.room].push(student.email);
+    roomMap[student.room].push({
+      name : student.name,
+      email : student.email,
+    });
   }
 
   console.log(roomMap);
