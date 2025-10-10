@@ -1,6 +1,6 @@
 import express from "express";
 import "./db/db.js"; // MongoDB connection
-import wolfRoutes from "./routes/Router.js";
+import routes from "./routes/Router.js";
 import cors from "cors";
 
 const app = express();
@@ -13,7 +13,7 @@ app.use(cors({
 
 app.use(express.json());
 
-app.use('/api', wolfRoutes)
+app.use('/api', routes)
 
 app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });

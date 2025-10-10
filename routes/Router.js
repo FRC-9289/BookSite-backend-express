@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { studentPOST, studentGET, roomGET, roomsGET } from "../controllers/Student/controller.js";
+import { studentPOST, studentGET, roomGET, roomsGET, submissionGET } from "../controllers/Student/controller.js";
 
 const router = Router();
 
@@ -13,6 +13,8 @@ router.post("/student-post", authMiddleware, upload.fields([
   { name: "file2", maxCount: 1 },
   { name: "file3", maxCount: 1 }
 ]), studentPOST);
+
+router.get("/submissions", authMiddleware, submissionGET);
 
 router.get("/room-get", authMiddleware, roomGET);
 router.get("/rooms-get", authMiddleware, roomsGET);

@@ -4,7 +4,9 @@ import {
   studentPOST as studentSave,
   studentGET as studentFetch,
   roomGET as roomFetch,
-  roomsGET as roomsFetch
+  roomsGET as roomsFetch,
+  submissionsGET,
+  downloadPDF
 } from "../../db/dbFunctions.js";
 
 import { Grade } from "../../models/student-grade.js";
@@ -12,15 +14,15 @@ import { Grade } from "../../models/student-grade.js";
 import { FormData } from "formdata-node";
 import { FormDataEncoder } from "form-data-encoder";
 import { Readable } from "stream";
-import nodemailer from "nodemailer";
+import { sendConfirmationEmail } from "./sendMail.js";
 
 async function studentPOST(req, res) {
   try {
-    const { grade, email, room } = req.body;
+    const { grade, email, room, name } = req.body;
     const files = Object.values(req.files || {}).flat();
 
     // --- Validation ---
-    if (!grade || !email || !room) {
+    if (!grade || !email || !room || !name) {
       return res.status(400).json({ error: "Missing required fields (grade, email, or room)" });
     }
     if (!files.length) {
@@ -43,7 +45,7 @@ async function studentPOST(req, res) {
       }
     }
 
-    await studentSave(gradex, email, room, fileIds);
+    await studentSave(gradex, email, room, fileIds, name);
 
     const savedData = await studentFetch(gradex, email);
     const verified =
@@ -57,34 +59,18 @@ async function studentPOST(req, res) {
       return res.status(500).json({ error: "Verification failed after saving record" });
     }
 
-    // const transporter = nodemailer.createTransport({
-    //   service: "gmail",
-    //   auth: {
-    //     user: process.env.USER,
-    //     pass: process.env.PASS,
-    //   },
-    // });
-
-    // await transporter.sendMail({
-    //   from: `"The Village Robotics Team" <${process.env.USER}>`,
-    //   to: email,
-    //   subject: `Submission Received (Grade ${gradex})`,
-    //   html: `
-    //     <div style="font-family: sans-serif; line-height: 1.5;">
-    //       <h2>Hello ${email},</h2>
-    //       <p>Thanks for your submission for <strong>Grade ${gradex}</strong>!</p>
-    //       <p>We’ve received your files for room <strong>${room}</strong> and will review them soon.</p>
-    //       <br/>
-    //       <p>– The Village Robotics Team</p>
-    //     </div>
-    //   `,
-    // });
+    const res = await sendConfirmationEmail(email, gradex, room);
+    if(!res.success){
+      throw new Error(res.error);
+    }
 
     res.status(201).json({
+      submissionId: savedData._id,
       message: "Student record saved and confirmation email sent.",
       grade: gradex,
       email,
       room,
+      name,
       fileIds,
     });
   } catch (err) {
@@ -200,10 +186,57 @@ async function roomsPOST(req, res) {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+/**
+ * Get all submissions
+ */
+async function submissionGET(req, res) {
+  try {
+    const submissions = await submissionsGET();
+
+    // Prepare the populated submissions array
+    const populatedSubmissions = [];
+
+    for (const submission of submissions) {
+      const populated = { ...submission, filesData: [] };
+
+      if (Array.isArray(submission.files) && submission.files.length > 0) {
+        for (const fileId of submission.files) {
+          try {
+            const pdfBuffer = await downloadPDF(fileId);
+            populated.filesData.push({
+              fileId,
+              base64: pdfBuffer.toString("base64"),
+              mimeType: "application/pdf",
+            });
+          } catch (err) {
+            console.warn(`⚠️ Failed to download file ${fileId}:`, err.message);
+            populated.filesData.push({
+              fileId,
+              error: "Failed to retrieve file from GridFS",
+            });
+          }
+        }
+      }
+
+      populatedSubmissions.push(populated);
+    }
+
+    // ✅ Only send response ONCE after all processing is done
+    return res.status(200).json(populatedSubmissions);
+
+  } catch (err) {
+    console.error("❌ Error in submissionGET:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  }
+}
+
 
 export{
   studentPOST,
   studentGET,
   roomGET,
   roomsGET,
+  submissionGET
 };
