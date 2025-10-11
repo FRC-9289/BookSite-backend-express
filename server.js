@@ -1,10 +1,23 @@
-import submissionRoutes from './routes/submissions.js';
+import express from "express";
+import "./db/db.js"; // MongoDB connection
+import routes from "./routes/Router.js";
+import cors from "cors";
 
-const express = require('express');
 const app = express();
-require('./db/db'); // MongoDB connection
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
 
 app.use(express.json());
+
+app.use('/api', routes)
+
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", message: "Server is healthy" });
+});
 
 const userRoutes = require('./routes/users');
 app.use('/', require('./routes/index'));
@@ -14,8 +27,6 @@ mongoose.connect(process.env.MONGODB_URI);
 
 // Listen on port 0 (random free port)
 const server = app.listen(8000, () => {
-  const port = server.address().port; // get actual port
+  const port = server.address().port;
   console.log(`Server running on http://localhost:${port}`);
 });
-
-app.use('/api/submissions', submissionRoutes);
