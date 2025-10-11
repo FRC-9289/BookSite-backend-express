@@ -6,7 +6,8 @@ import {
   roomGET as roomFetch,
   roomsGET as roomsFetch,
   submissionsGET,
-  downloadPDF
+  downloadPDF,
+  getPDFMetadata
 } from "../../db/dbFunctions.js";
 
 import { Grade } from "../../models/student-grade.js";
@@ -59,10 +60,10 @@ async function studentPOST(req, res) {
       return res.status(500).json({ error: "Verification failed after saving record" });
     }
 
-    const res = await sendConfirmationEmail(email, gradex, room);
-    if(!res.success){
-      throw new Error(res.error);
-    }
+    // const res = await sendConfirmationEmail(email, gradex, room);
+    // if(!res.success){
+    //   throw new Error(res.error);
+    // }
 
     res.status(201).json({
       submissionId: savedData._id,
@@ -86,30 +87,38 @@ async function studentGET(req, res) {
       return res.status(400).json({ error: "Missing grade or email" });
     }
 
-    const gradex = parseInt(grade);
+    const gradex = parseInt(grade, 10) ;
     if (isNaN(gradex)) {
       return res.status(400).json({ error: "Grade must be an integer" });
     }
 
     const student = await studentFetch(gradex, email);
-    if (!student) {
-      return res.status(404).json({ error: "Student not found" });
-    }
 
+    // Create FormData response
     const form = new FormData();
 
-    form.set(
-      "data",
-      new Blob([JSON.stringify({ student })], { type: "application/json" })
-    );
-
-    const pdfFileIds = (student.files || []).slice(0, 3);
-    for (let i = 0; i < pdfFileIds.length; i++) {
-      const fileBuffer = await getGridFSBucket(pdfFileIds[i]);
+    if (student) {
+      // Add student data
       form.set(
-        `pdf_${i}`,
-        new Blob([fileBuffer], { type: "application/pdf" }),
-        `file_${i}.pdf`
+        "data",
+        new Blob([JSON.stringify({ student })], { type: "application/json" })
+      );
+
+      // Add up to 3 PDFs
+      const pdfFileIds = (student.files || []).slice(0, 3);
+      for (let i = 0; i < pdfFileIds.length; i++) {
+        const fileBuffer = await getGridFSBucket(pdfFileIds[i]);
+        form.set(
+          `pdf_${i}`,
+          new Blob([fileBuffer], { type: "application/pdf" }),
+          `file_${i}.pdf`
+        );
+      }
+    } else {
+      // No student found → return empty student object
+      form.set(
+        "data",
+        new Blob([JSON.stringify({ student: null })], { type: "application/json" })
       );
     }
 
@@ -130,8 +139,8 @@ async function roomGET(req, res) {
     if (!grade || !room) return res.status(400).json({ error: "Missing grade or room" });
 
     const gradex = parseInt(grade);
-    const emails = await roomFetch(gradex, room);
-    res.status(200).json({ grade: gradex, room, students: emails });
+    const names = await roomFetch(gradex, room);
+    res.status(200).json({ grade: gradex, room, students: names });
   } catch (err) {
     console.error("Error in roomGET:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -201,10 +210,11 @@ async function submissionGET(req, res) {
 
       if (Array.isArray(submission.files) && submission.files.length > 0) {
         for (const fileId of submission.files) {
-          try {
+          try {;
             const pdfBuffer = await downloadPDF(fileId);
             populated.filesData.push({
               fileId,
+              fileName : (await getPDFMetadata(fileId))?.filename || "unknown.pdf",
               base64: pdfBuffer.toString("base64"),
               mimeType: "application/pdf",
             });

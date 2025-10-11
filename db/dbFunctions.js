@@ -1,4 +1,4 @@
-const { MongoClient, GridFSBucket } = require("mongodb");
+const { MongoClient, GridFSBucket, ObjectId } = require("mongodb");
 const { Grade } = require("../models/student-grade");
 const fs = require("fs");
 
@@ -34,6 +34,37 @@ async function uploadPDF(file, email) {
     uploadStream.on("error", reject);
     uploadStream.on("finish", () => resolve(uploadStream.id));
     uploadStream.end(file.buffer);
+  });
+}
+
+async function getPDFMetadata(fileId) {
+  const database = await getStudentDB();
+  const bucket = await getGridFSBucket();
+
+  const filesCollection = database.collection("files.files");
+
+  // Ensure fileId is an ObjectId
+  const id = typeof fileId === "string" ? new ObjectId(fileId) : fileId;
+
+  // Lookup file metadata
+  const fileDoc = await filesCollection.findOne({ _id: id });
+  if (!fileDoc) throw new Error("File not found in GridFS");
+
+  // Download the actual binary content
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const downloadStream = bucket.openDownloadStream(id);
+
+    downloadStream.on("data", (chunk) => chunks.push(chunk));
+    downloadStream.on("error", reject);
+    downloadStream.on("end", () => {
+      resolve({
+        filename: fileDoc.filename,
+        metadata: fileDoc.metadata,
+        uploadDate: fileDoc.uploadDate,
+        contentType: fileDoc.contentType,
+      });
+    });
   });
 }
 
@@ -148,7 +179,6 @@ module.exports = {
   roomGET,
   roomsGET,
   submissionsGET,
-  downloadPDF
+  downloadPDF,
+  getPDFMetadata
 };
-
-roomGET(10,"1M1").then(console.log).catch(console.error);
