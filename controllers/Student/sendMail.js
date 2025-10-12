@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-export async function sendConfirmationEmail(email, grade, room) {
+export async function sendEmail(to, subject, html) {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -11,18 +11,10 @@ export async function sendConfirmationEmail(email, grade, room) {
     });
 
     const mailOptions = {
-      from: `"The Village Robotics Team" <${process.env.USER}>`,
-      to: email,
-      subject: `Submission Received (Grade ${grade})`,
-      html: `
-        <div style="font-family: sans-serif; line-height: 1.5;">
-          <h2>Hello ${email},</h2>
-          <p>Thanks for your submission for <strong>Grade ${grade}</strong>!</p>
-          <p>We’ve received your files for room <strong>${room}</strong> and will review them soon.</p>
-          <br/>
-          <p>– The Village Robotics Team</p>
-        </div>
-      `,
+      from: `"The Village Tech Team" <${process.env.USER}>`,
+      to: to,
+      subject: subject,
+      html: html,
     };
 
     await transporter.sendMail(mailOptions);
