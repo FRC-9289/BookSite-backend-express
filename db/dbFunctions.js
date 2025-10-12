@@ -78,7 +78,7 @@ export async function studentPOST(gradeNumber, email, room, fileIds, name) {
     name: name || "",
     files: fileIds,
     updatedAt: new Date(),
-    status: "pending"
+    status: "Pending"
   };
 
   await collection.updateOne(
