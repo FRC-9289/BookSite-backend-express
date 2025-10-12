@@ -9,7 +9,8 @@ const studentSchema = new mongoose.Schema({
   files: [{
     type: String,
     match: /^[a-f\d]{24}$/i
-  }]
+  }],
+  approved: Boolean
 });
 
 const gradeSchema = new mongoose.Schema({

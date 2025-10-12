@@ -14,6 +14,109 @@ const { FormDataEncoder } = require("form-data-encoder");
 const { Readable } = require("stream");
 const { File } = require("formdata-node");
 const { ObjectId } = require("mongodb");
+
+async function studentGET(req, res) {
+  const bucket = await getGridFSBucket();
+
+  try {
+    const { grade, email } = req.query;
+    if (!grade || !email) return res.status(400).json({ error: "Missing grade or email" });
+
+    const gradex = parseInt(grade);
+    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
+
+    let student = await studentFetch(gradex, email);
+    if (!student) {
+      await studentSave(gradex, email, "", []);
+      student = await studentFetch(gradex, email);
+    }
+
+    const form = new FormData();
+
+    form.set("room", new File([Buffer.from(JSON.stringify(student.room))], "room.json", { type: "application/json" }));
+
+    form.set("approved", new File([Buffer.from(JSON.stringify(student.approved))], "approved.json", { type: "application/json" }));
+
+    const pdfFileIds = student.files || [];
+    for (const [index, rawId] of pdfFileIds.entries()) {
+      const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
+      const chunks = [];
+
+      await new Promise((resolve, reject) => {
+        bucket.openDownloadStream(fileId)
+          .on("data", chunk => chunks.push(chunk))
+          .on("error", reject)
+          .on("end", () => resolve());
+      });
+
+      if (chunks.length > 0) {
+        const fileBuffer = Buffer.concat(chunks);
+        const file = new File([fileBuffer], `file_${index}.pdf`, { type: "application/pdf" });
+        form.set(`pdf_${index}`, file);
+      }
+    }
+
+    const encoder = new FormDataEncoder(form);
+    res.setHeader("Content-Type", encoder.contentType);
+    res.setHeader("Transfer-Encoding", "chunked");
+    Readable.from(encoder.encode()).pipe(res);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function studentsGET(req, res) {
+  try {
+    const { grade } = req.query;
+    if (!grade) return res.status(400).json({ error: "Missing grade" });
+
+    const gradex = parseInt(grade, 10);
+    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
+
+    const doc = await Grade.findOne({ grade: gradex }).lean();
+    if (!doc || !doc.students) return res.status(200).json([]);
+
+    const bucket = await getGridFSBucket();
+
+    const studentsWithPdfs = [];
+
+    for (const student of doc.students) {
+      const pdfBlobs = [];
+
+      for (const rawId of student.files || []) {
+        const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
+        const chunks = [];
+
+        await new Promise ((resolve, reject) => {
+          bucket.openDownloadStream(fileId)
+            .on("data", c => chunks.push(c))
+            .on("error", reject)
+            .on("end", () => resolve());
+        });
+
+        if (chunks.length > 0) {
+          pdfBlobs.push(new Blob([Buffer.concat(chunks)], { type: "application/pdf" }));
+        }
+      }
+
+      studentsWithPdfs.push({
+        email: student.email,
+        room: student.room,
+        approved: !!student.approved,
+        pdfs: pdfBlobs
+      });
+    }
+
+    res.status(200).json(studentsWithPdfs);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 async function studentPOST(req, res) {
   try {
     const { grade, email, room } = req.body;
@@ -76,51 +179,29 @@ async function studentPOST(req, res) {
   }
 }
 
-async function studentGET(req, res) {
-  const bucket = await getGridFSBucket();
-
+async function studentPATCH(req, res) {
   try {
-    const { grade, email } = req.query;
-    if (!grade || !email) return res.status(400).json({ error: "Missing grade or email" });
+    const { grade, email, approved } = req.body;
 
-    const gradex = parseInt(grade);
+    if (!grade || !email || typeof approved !== 'boolean') {
+      return res.status(400).json({ error: "Missing grade, email, or invalid approved value" });
+    }
+
+    const gradex = parseInt(grade, 10);
     if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
 
-    let student = await studentFetch(gradex, email);
-    if (!student) {
-      await studentSave(gradex, email, "", []);
-      student = await studentFetch(gradex, email);
+    const result = await Grade.updateOne(
+      { grade: gradex, "students.email": email },
+      { $set: { "students.$.approved": approved } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Student not found" });
     }
 
-    const form = new FormData();
-    const roomJson = JSON.stringify({ room: student.room });
-    form.set("data", new File([Buffer.from(roomJson)], "data.json", { type: "application/json" }));
-
-    const pdfFileIds = student.files || [];
-    for (const [index, rawId] of pdfFileIds.entries()) {
-      const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
-      const chunks = [];
-
-      await new Promise((resolve, reject) => {
-        bucket.openDownloadStream(fileId)
-          .on("data", chunk => chunks.push(chunk))
-          .on("error", reject)
-          .on("end", () => resolve());
-      });
-
-      if (chunks.length > 0) {
-        const fileBuffer = Buffer.concat(chunks);
-        const file = new File([fileBuffer], `file_${index}.pdf`, { type: "application/pdf" });
-        form.set(`pdf_${index}`, file);
-      }
-    }
-
-    const encoder = new FormDataEncoder(form);
-    res.setHeader("Content-Type", encoder.contentType);
-    res.setHeader("Transfer-Encoding", "chunked");
-    Readable.from(encoder.encode()).pipe(res);
-
+    res.status(200).json({ message: "Student updated", grade: gradex, email, approved });
   } catch (err) {
+    console.error("Error in studentPATCH:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -184,8 +265,10 @@ async function roomsPOST(req, res) {
 }
 
 module.exports = {
-  studentPOST,
   studentGET,
+  studentsGET,
+  studentPOST,
+  studentPATCH,
   roomGET,
   roomsGET,
   roomsPOST

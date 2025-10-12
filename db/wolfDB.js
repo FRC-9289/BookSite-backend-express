@@ -15,19 +15,14 @@ async function getStudentDB() {
 }
 
 async function getGridFSBucket() {
-  if (!db) {
-    await getStudentDB();
-  }
+  if (!db) await getStudentDB();
   return new GridFSBucket(db, { bucketName: "files" });
 }
 
 async function uploadPDF(file, email) {
   const bucket = await getGridFSBucket();
-
   return new Promise((resolve, reject) => {
-    if (!file || !file.buffer) {
-      return reject(new Error("Invalid file or missing buffer"));
-    }
+    if (!file || !file.buffer) return reject(new Error("Invalid file or missing buffer"));
 
     const uploadStream = bucket.openUploadStream(file.originalname, {
       contentType: file.mimetype,
@@ -40,12 +35,8 @@ async function uploadPDF(file, email) {
         files_id: uploadStream.id,
         n: 0
       });
-
-      if (!chunkExists) {
-        return reject(new Error("Upload failed: no chunks found"));
-      }
-
-      resolve(uploadStream.id);
+      if (!chunkExists) return reject(new Error("Upload failed: no chunks found"));
+      resolve(uploadStream.id.toString());
     });
 
     uploadStream.end(file.buffer);
@@ -53,7 +44,7 @@ async function uploadPDF(file, email) {
 }
 
 async function studentPOST(grade, email, room, fileIds) {
-  const student = { email, room, files: fileIds };
+  const student = { email, room, files: fileIds, approved: false };
 
   const result = await Grade.updateOne(
     { grade, "students.email": email },
@@ -76,11 +67,6 @@ async function studentGET(grade, email) {
   ).lean();
 
   return doc?.students?.[0] || null;
-}
-
-async function studentsGET(grade) {
-  const doc = await Grade.findOne({ grade }, { students: 1 }).lean();
-  return doc?.students || [];
 }
 
 async function roomGET(grade, room) {
@@ -110,7 +96,6 @@ module.exports = {
   uploadPDF,
   studentPOST,
   studentGET,
-  studentsGET,
   roomGET,
   roomsGET,
 };
