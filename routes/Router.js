@@ -7,7 +7,7 @@ const router = Router();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.get("/student-get", authMiddleware, studentGET);
+router.get("/student-get", authMiddleware, getStudentByGrade);
 router.post("/student-post", authMiddleware, upload.fields([
   { name: "file1", maxCount: 1 },
   { name: "file2", maxCount: 1 },
