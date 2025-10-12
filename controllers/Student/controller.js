@@ -8,7 +8,8 @@ import {
   roomsGET,
   submissionsGET,
   downloadPDF,
-  getPDFMetadata
+  getPDFMetadata,
+  updateStudentSubmissionById
 } from "../../db/dbFunctions.js";
 
 import { FormData } from "formdata-node";
@@ -209,10 +210,16 @@ export async function getSubmissions(req, res) {
 }
 
 export async function manageStatus(req,res){
-  const { status, submissionId } = req.body;
+  const { status, submissionId } = req.query;
 
-  const updated = await studentGETById(submissionId)
+  console.log(status);
+  console.log(submissionId);
+
+  const updated = await studentGETById(submissionId);
+  console.log(updated);
   if (!updated) return res.status(404).json({ error: 'Submission not found' });
+
+  await updateStudentSubmissionById(submissionId, 'status', status);
 
   // Send approval email if approved
   if (status === 'approved') {
@@ -257,5 +264,5 @@ export async function manageStatus(req,res){
     });
   }
 
-  res.json(updated);
+  res.json({ message: 'Status updated successfully' });
 }

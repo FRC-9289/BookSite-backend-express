@@ -19,12 +19,6 @@ app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });
 });
 
-const userRoutes = require('./routes/users');
-app.use('/', require('./routes/index'));
-app.use('/users', userRoutes);
-
-mongoose.connect(process.env.MONGODB_URI);
-
 // Listen on port 0 (random free port)
 const server = app.listen(8000, () => {
   const port = server.address().port;

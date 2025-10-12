@@ -157,6 +157,24 @@ export async function roomsGET(gradeNumber) {
 
   return roomMap;
 }
+
+export async function updateStudentSubmissionById(submissionId, key, value) {
+  const db = await getStudentDB();
+  const collection = db.collection("data");
+
+  const update = { $set: { [key]: value, updatedAt: new Date() } };
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(submissionId) },
+    update
+  );
+
+  if (result.matchedCount === 0) {
+    throw new Error("No submission found with the given ID");
+  }
+
+  return result;
+}
 /**
  * Fetch all submissions
  */
