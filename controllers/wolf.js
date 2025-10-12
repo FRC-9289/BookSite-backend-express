@@ -4,15 +4,16 @@ const {
   studentPOST: studentSave,
   studentGET: studentFetch,
   roomGET: roomFetch,
-  roomsGET: roomsFetch
+  roomsGET: roomsFetch,
+  getStudentDB
 } = require("../db/wolfDB");
 const { Grade } = require("../models/Wolf");
 
 const { FormData } = require("formdata-node");
 const { FormDataEncoder } = require("form-data-encoder");
 const { Readable } = require("stream");
-const nodemailer = require('nodemailer');
-
+const { File } = require("formdata-node");
+const { ObjectId } = require("mongodb");
 async function studentPOST(req, res) {
   try {
     const { grade, email, room } = req.body;
@@ -31,9 +32,16 @@ async function studentPOST(req, res) {
     }
 
     const fileIds = [];
+    console.log("Incoming files:", files.map(f => ({
+      name: f.originalname,
+      mimetype: f.mimetype,
+      hasBuffer: !!f.buffer
+    })));
+
     for (const file of files) {
       try {
         const id = await uploadPDF(file, email);
+        if (!id) throw new Error("Invalid file ID");
         fileIds.push(id);
       } catch (uploadErr) {
         console.error("File upload failed:", file.originalname, uploadErr);
@@ -43,43 +51,20 @@ async function studentPOST(req, res) {
 
     await studentSave(gradex, email, room, fileIds);
 
-    const savedData = await studentFetch(gradex, email);
+    const saved = await studentFetch(gradex, email);
     const verified =
-      savedData &&
-      savedData.room === room &&
-      Array.isArray(savedData.files) &&
-      savedData.files.length === fileIds.length;
+      saved &&
+      saved.room === room &&
+      Array.isArray(saved.files) &&
+      saved.files.length === fileIds.length;
 
     if (!verified) {
-      console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", savedData);
+      console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", saved);
       return res.status(500).json({ error: "Verification failed after saving record" });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.USER,
-        pass: process.env.PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"The Village Robotics Team" <${process.env.USER}>`,
-      to: email,
-      subject: `Submission Received (Grade ${gradex})`,
-      html: `
-        <div style="font-family: sans-serif; line-height: 1.5;">
-          <h2>Hello ${email},</h2>
-          <p>Thanks for your submission for <strong>Grade ${gradex}</strong>!</p>
-          <p>We’ve received your files for room <strong>${room}</strong> and will review them soon.</p>
-          <br/>
-          <p>– The Village Robotics Team</p>
-        </div>
-      `,
-    });
-
     res.status(201).json({
-      message: "Student record saved and confirmation email sent.",
+      message: "Student record saved successfully.",
       grade: gradex,
       email,
       room,
@@ -92,46 +77,50 @@ async function studentPOST(req, res) {
 }
 
 async function studentGET(req, res) {
+  const bucket = await getGridFSBucket();
+
   try {
     const { grade, email } = req.query;
-    if (!grade || !email) {
-      return res.status(400).json({ error: "Missing grade or email" });
-    }
+    if (!grade || !email) return res.status(400).json({ error: "Missing grade or email" });
 
     const gradex = parseInt(grade);
-    if (isNaN(gradex)) {
-      return res.status(400).json({ error: "Grade must be an integer" });
-    }
+    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
 
-    const student = await studentFetch(gradex, email);
+    let student = await studentFetch(gradex, email);
     if (!student) {
-      return res.status(404).json({ error: "Student not found" });
+      await studentSave(gradex, email, "", []);
+      student = await studentFetch(gradex, email);
     }
 
     const form = new FormData();
+    const roomJson = JSON.stringify({ room: student.room });
+    form.set("data", new File([Buffer.from(roomJson)], "data.json", { type: "application/json" }));
 
-    form.set(
-      "data",
-      new Blob([JSON.stringify({ student })], { type: "application/json" })
-    );
+    const pdfFileIds = student.files || [];
+    for (const [index, rawId] of pdfFileIds.entries()) {
+      const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
+      const chunks = [];
 
-    const pdfFileIds = (student.files || []).slice(0, 3);
-    for (let i = 0; i < pdfFileIds.length; i++) {
-      const fileBuffer = await getGridFSBuffer(pdfFileIds[i]);
-      form.set(
-        `pdf_${i}`,
-        new Blob([fileBuffer], { type: "application/pdf" }),
-        `file_${i}.pdf`
-      );
+      await new Promise((resolve, reject) => {
+        bucket.openDownloadStream(fileId)
+          .on("data", chunk => chunks.push(chunk))
+          .on("error", reject)
+          .on("end", () => resolve());
+      });
+
+      if (chunks.length > 0) {
+        const fileBuffer = Buffer.concat(chunks);
+        const file = new File([fileBuffer], `file_${index}.pdf`, { type: "application/pdf" });
+        form.set(`pdf_${index}`, file);
+      }
     }
 
     const encoder = new FormDataEncoder(form);
     res.setHeader("Content-Type", encoder.contentType);
     res.setHeader("Transfer-Encoding", "chunked");
-
     Readable.from(encoder.encode()).pipe(res);
+
   } catch (err) {
-    console.error("Error in studentGET:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }

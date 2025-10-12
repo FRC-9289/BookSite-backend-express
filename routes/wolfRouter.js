@@ -16,7 +16,7 @@ router.post("/student-post", authMiddleware, upload.fields([
 
 router.get("/room-get", authMiddleware, roomGET);
 router.get("/rooms-get", authMiddleware, roomsGET);
-router.get("/rooms-post", authMiddleware, roomsPOST);
+router.post("/rooms-post", authMiddleware, roomsPOST);
 
 export default router;
 //Wolfram121
