@@ -1,22 +1,24 @@
 import { Router } from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { studentPOST, studentGET, roomGET, roomsGET, submissionGET } from "../controllers/Student/controller.js";
+import { postStudent, getStudentByGrade, getRoom, getRoomsSubmissions, manageStatus, getSubmissions} from "../controllers/Student/controller.js";
 
 const router = Router();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.get("/student-get", authMiddleware, studentGET);
+router.get("/student-get", authMiddleware, getStudentByGrade);
 router.post("/student-post", authMiddleware, upload.fields([
   { name: "file1", maxCount: 1 },
   { name: "file2", maxCount: 1 },
   { name: "file3", maxCount: 1 }
-]), studentPOST);
+]), postStudent);
 
-router.get("/submissions", authMiddleware, submissionGET);
+router.get("/submissions", authMiddleware, getSubmissions);
 
-router.get("/room-get", authMiddleware, roomGET);
-router.get("/rooms-get", authMiddleware, roomsGET);
+router.get("/room-get", authMiddleware, getRoom);
+router.get("/rooms-get", authMiddleware, getRoomsSubmissions);
+
+router.patch("/manage-status",authMiddleware,manageStatus);
 
 export default router;

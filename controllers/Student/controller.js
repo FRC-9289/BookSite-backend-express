@@ -1,23 +1,22 @@
 import {
   getGridFSBucket,
   uploadPDF,
-  studentPOST as studentSave,
-  studentGET as studentFetch,
-  roomGET as roomFetch,
-  roomsGET as roomsFetch,
+  studentPOST,
+  studentGETByGrade,
+  studentGETById,
+  roomGET,
+  roomsGET,
   submissionsGET,
   downloadPDF,
   getPDFMetadata
 } from "../../db/dbFunctions.js";
 
-import { Grade } from "../../models/student-grade.js";
-
 import { FormData } from "formdata-node";
 import { FormDataEncoder } from "form-data-encoder";
 import { Readable } from "stream";
-import { sendConfirmationEmail } from "./sendMail.js";
+import { sendEmail } from "./sendMail.js";
 
-async function studentPOST(req, res) {
+export async function postStudent(req, res) {
   try {
     const { grade, email, room, name } = req.body;
     const files = Object.values(req.files || {}).flat();
@@ -46,9 +45,9 @@ async function studentPOST(req, res) {
       }
     }
 
-    await studentSave(gradex, email, room, fileIds, name);
+    await studentPOST(gradex, email, room, fileIds, name);
 
-    const savedData = await studentFetch(gradex, email);
+    const savedData = await studentGETByGrade(gradex, email);
     const verified =
       savedData &&
       savedData.room === room &&
@@ -80,7 +79,7 @@ async function studentPOST(req, res) {
   }
 }
 
-async function studentGET(req, res) {
+export async function getStudentByGrade(req, res) {
   try {
     const { grade, email } = req.query;
     if (!grade || !email) {
@@ -92,7 +91,7 @@ async function studentGET(req, res) {
       return res.status(400).json({ error: "Grade must be an integer" });
     }
 
-    const student = await studentFetch(gradex, email);
+    const student = await studentGETByGrade(gradex, email);
 
     // Create FormData response
     const form = new FormData();
@@ -133,13 +132,13 @@ async function studentGET(req, res) {
   }
 }
 
-async function roomGET(req, res) {
+export async function getRoom(req, res) {
   try {
     const { grade, room } = req.query;
     if (!grade || !room) return res.status(400).json({ error: "Missing grade or room" });
 
     const gradex = parseInt(grade);
-    const names = await roomFetch(gradex, room);
+    const names = await roomGET(gradex, room);
     res.status(200).json({ grade: gradex, room, students: names });
   } catch (err) {
     console.error("Error in roomGET:", err);
@@ -147,58 +146,25 @@ async function roomGET(req, res) {
   }
 }
 
-async function roomsGET(req, res) {
+export async function getRoomsSubmissions(req, res) {
   try {
     const { grade } = req.query;
     if (!grade) return res.status(400).json({ error: "Missing grade" });
 
     const gradex = parseInt(grade);
-    const rooms = await roomsFetch(gradex);
+    const rooms = await roomsGET(gradex);
 
-    console.log(rooms);
+
     res.status(200).json(rooms);
   } catch (err) {
     console.error("Error in roomsGET:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
-
-async function roomsPOST(req, res) {
-  try {
-    const { grade, rooms } = req.body;
-
-    // --- Validation ---
-    if (!grade || !Array.isArray(rooms) || rooms.length === 0) {
-      return res.status(400).json({ error: "Missing or invalid grade or rooms array" });
-    }
-
-    const gradex = parseInt(grade, 10);
-    if (isNaN(gradex)) {
-      return res.status(400).json({ error: "Grade must be a valid integer" });
-    }
-
-    // --- Update or create Grade document ---
-    const result = await Grade.updateOne(
-      { grade: gradex },
-      { $set: { rooms } },
-      { upsert: true }
-    );
-
-    res.status(200).json({
-      message: "Rooms updated successfully",
-      grade: gradex,
-      rooms,
-      result,
-    });
-  } catch (err) {
-    console.error("Error in roomsPOST:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-}
 /**
  * Get all submissions
  */
-async function submissionGET(req, res) {
+export async function getSubmissions(req, res) {
   try {
     const submissions = await submissionsGET();
 
@@ -242,11 +208,54 @@ async function submissionGET(req, res) {
   }
 }
 
+export async function manageStatus(req,res){
+  const { status, submissionId } = req.body;
 
-export{
-  studentPOST,
-  studentGET,
-  roomGET,
-  roomsGET,
-  submissionGET
-};
+  const updated = await studentGETById(submissionId)
+  if (!updated) return res.status(404).json({ error: 'Submission not found' });
+
+  // Send approval email if approved
+  if (status === 'approved') {
+    await sendEmail({
+      to: updated.studentEmail,
+      subject: 'Village Robotics Signup Approved',
+      text: `
+        <div style="font-family: sans-serif; line-height: 1.5;">
+          <h2>Hello ${updated.studentName},</h2>
+          <p>Your submission has been approved. Welcome aboard!</p>
+          <br/>
+          <p> The Village Tech Team</p>
+        </div>
+      `
+    });
+  }
+  else if(status == 'pending'){
+    await sendEmail({
+      to: updated.studentEmail,
+      subject: 'Village Robotics Signup Approved',
+      text: `
+        <div style="font-family: sans-serif; line-height: 1.5;">
+          <h2>Hello ${updated.studentName},</h2>
+          <p>Your submission has been put on pending. We will notify you further for more updates</p>
+          <br/>
+          <p> The Village Tech Team</p>
+        </div>
+      `
+    });
+  } else if(status == 'denied'){
+    await sendEmail({
+      to: updated.studentEmail,
+      subject: 'Village Robotics Signup Approved',
+      text: `
+        <div style="font-family: sans-serif; line-height: 1.5;">
+          <h2>Hello ${updated.studentName},</h2>
+          <p>Your submission has been denied. We will notify you further for more updates</p>
+          <br/>
+          <p> The Village Tech Team</p>
+        </div>
+      `
+    });
+  }
+
+  res.json(updated);
+}
