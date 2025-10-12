@@ -14,6 +14,10 @@ const { FormDataEncoder } = require("form-data-encoder");
 const { Readable } = require("stream");
 const { File } = require("formdata-node");
 const { ObjectId } = require("mongodb");
+const { sendEmail } = require("../controllers/sendMail"); 
+const { getApprovalEmailContent } = require("../controllers/sendMail"); 
+const { getRejectedEmailContent } = require("../controllers/sendMail"); 
+const { getPendingEmailContent } = require("../controllers/sendMail"); 
 
 async function studentGET(req, res) {
   const bucket = await getGridFSBucket();
@@ -122,57 +126,52 @@ async function studentPOST(req, res) {
     const { grade, email, room } = req.body;
     const files = Object.values(req.files || {}).flat();
 
-    if (!grade || !email || !room) {
+    if (!grade || !email || !room)
       return res.status(400).json({ error: "Missing required fields (grade, email, or room)" });
-    }
-    if (!files.length) {
+    if (!files.length)
       return res.status(400).json({ error: "No files uploaded" });
-    }
 
     const gradex = parseInt(grade, 10);
-    if (isNaN(gradex)) {
-      return res.status(400).json({ error: "Grade must be a valid integer" });
-    }
+    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be a valid integer" });
 
     const fileIds = [];
-    console.log("Incoming files:", files.map(f => ({
-      name: f.originalname,
-      mimetype: f.mimetype,
-      hasBuffer: !!f.buffer
-    })));
-
     for (const file of files) {
-      try {
-        const id = await uploadPDF(file, email);
-        if (!id) throw new Error("Invalid file ID");
-        fileIds.push(id);
-      } catch (uploadErr) {
-        console.error("File upload failed:", file.originalname, uploadErr);
-        return res.status(500).json({ error: `Failed to upload file: ${file.originalname}` });
-      }
+      const id = await uploadPDF(file, email);
+      if (!id) throw new Error("Invalid file ID");
+      fileIds.push(id);
     }
 
     await studentSave(gradex, email, room, fileIds);
-
     const saved = await studentFetch(gradex, email);
+
     const verified =
-      saved &&
-      saved.room === room &&
+      saved && saved.room === room &&
       Array.isArray(saved.files) &&
       saved.files.length === fileIds.length;
 
-    if (!verified) {
-      console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", saved);
+    if (!verified)
       return res.status(500).json({ error: "Verification failed after saving record" });
+
+    // send submission confirmation email
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Submission Received - Pending Approval",
+        text: getPendingEmailContent(),
+      });
+      console.log(`Confirmation email sent to ${email}`);
+    } catch (mailErr) {
+      console.error("Failed to send confirmation email:", mailErr);
     }
 
     res.status(201).json({
-      message: "Student record saved successfully.",
+      message: "Student record saved successfully. Confirmation email sent.",
       grade: gradex,
       email,
       room,
       fileIds,
     });
+
   } catch (err) {
     console.error("Error in studentPOST:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -183,9 +182,8 @@ async function studentPATCH(req, res) {
   try {
     const { grade, email, approved } = req.body;
 
-    if (!grade || !email || typeof approved !== 'boolean') {
+    if (!grade || !email || typeof approved !== 'boolean')
       return res.status(400).json({ error: "Missing grade, email, or invalid approved value" });
-    }
 
     const gradex = parseInt(grade, 10);
     if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
@@ -195,8 +193,32 @@ async function studentPATCH(req, res) {
       { $set: { "students.$.approved": approved } }
     );
 
-    if (result.matchedCount === 0) {
+    if (result.matchedCount === 0)
       return res.status(404).json({ error: "Student not found" });
+
+    // send approval or rejection email
+    try {
+      if (approved) {
+        if (typeof sendEmail === "function") {
+          await sendEmail(email);
+        } else {
+          await sendEmail({
+            to: email,
+            subject: "Submission Approved",
+            text: getApprovalEmailContent(),
+          });
+        }
+        console.log(`Approval email sent to ${email}`);
+      } else {
+        await sendMail({
+          to: email,
+          subject: "Submission Not Approved",
+          text: getRejectedEmailContent(),
+        });
+        console.log(`Rejection email sent to ${email}`);
+      }
+    } catch (mailErr) {
+      console.error("Failed to send status update email:", mailErr);
     }
 
     res.status(200).json({ message: "Student updated", grade: gradex, email, approved });

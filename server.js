@@ -2,7 +2,11 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import wolfRoutes from "./routes/wolfRouter.js";
+import emailRoutes from "./routes/emailRoutes.js";
 import cors from "cors";
+
+const userRoutes = require("./routes/userRoutes");
+app.use("/api/users", userRoutes);
 
 dotenv.config();
 
@@ -16,6 +20,8 @@ app.use(cors({
 app.use(express.json());
 
 app.use("/api/wolf", wolfRoutes);
+app.use("/api/emails", emailRoutes);
+
 app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });
 });
