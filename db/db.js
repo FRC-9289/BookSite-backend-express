@@ -1,4 +1,4 @@
-const { MongoClient } = require("mongodb");
+import { MongoClient } from "mongodb";
 
 const url = process.env.MONGO_URL || 'mongodb://localhost:27017';
 const client = new MongoClient(url, { useUnifiedTopology: true });
@@ -26,4 +26,4 @@ async function closeDB() {
   }
 }
 
-module.exports = { connectToDB, closeDB, client };
+export { connectToDB, closeDB, client };
