@@ -19,6 +19,7 @@ app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });
 });
 
+// Listen on port 0 (random free port)
 const server = app.listen(8000, () => {
   const port = server.address().port;
   console.log(`Server running on http://localhost:${port}`);
