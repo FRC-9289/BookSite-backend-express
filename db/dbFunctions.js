@@ -153,8 +153,6 @@ export async function roomsGET(gradeNumber) {
     });
   }
 
-  console.log(roomMap);
-
   return roomMap;
 }
 
