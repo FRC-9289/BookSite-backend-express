@@ -26,5 +26,3 @@ export async function sendEmail(to, subject, html) {
     return { success: false, error: err.message };
   }
 }
-
-sendEmail("aditya_chakraborty@s.thevillageschool.com", "Test Email", "<h1>This is a test email</h1>").then(console.log).catch(console.error);

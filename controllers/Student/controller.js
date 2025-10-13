@@ -215,50 +215,49 @@ export async function manageStatus(req,res){
   const updated = await studentGETById(submissionId);
   if (!updated) return res.status(404).json({ error: 'Submission not found' });
 
+  let success;
+
   await updateStudentSubmissionById(submissionId, 'status', status);
 
   // Send approval email if approved
-  if (status === 'approved') {
-    await sendEmail({
-      to: updated.studentEmail,
-      subject: 'Village Robotics Signup Approved',
-      text: `
-        <div style="font-family: sans-serif; line-height: 1.5;">
-          <h2>Hello ${updated.studentName},</h2>
-          <p>Your submission has been approved. Welcome aboard!</p>
-          <br/>
-          <p> The Village Tech Team</p>
-        </div>
-      `
-    });
-  }
-  else if(status == 'pending'){
-    await sendEmail({
-      to: updated.studentEmail,
-      subject: 'Village Robotics Signup Approved',
-      text: `
-        <div style="font-family: sans-serif; line-height: 1.5;">
-          <h2>Hello ${updated.studentName},</h2>
-          <p>Your submission has been put on pending. We will notify you further for more updates</p>
-          <br/>
-          <p> The Village Tech Team</p>
-        </div>
-      `
-    });
-  } else if(status == 'denied'){
-    await sendEmail({
-      to: updated.studentEmail,
-      subject: 'Village Robotics Signup Approved',
-      text: `
-        <div style="font-family: sans-serif; line-height: 1.5;">
-          <h2>Hello ${updated.studentName},</h2>
-          <p>Your submission has been denied. We will notify you further for more updates</p>
-          <br/>
-          <p> The Village Tech Team</p>
-        </div>
-      `
-    });
+  if (status === 'Approved') {
+    success = await sendEmail(
+      updated.studentEmail,
+      'Village Robotics Signup Approved',
+      `<div style="font-family: sans-serif; line-height: 1.5;">
+         <h2>Hello ${updated.studentName},</h2>
+         <p>Your submission has been approved. Welcome aboard!</p>
+         <br/>
+         <p>The Village Tech Team</p>
+       </div>`
+    );
+  } else if (status === 'Pending') {
+    success = await sendEmail(
+      updated.studentEmail,
+      'Village Robotics Signup Pending',
+      `<div style="font-family: sans-serif; line-height: 1.5;">
+         <h2>Hello ${updated.studentName},</h2>
+         <p>Your submission is pending. We will notify you further for more updates.</p>
+         <br/>
+         <p>The Village Tech Team</p>
+       </div>`
+    );
+  } else if (status === 'Denied') {
+    success = await sendEmail(
+      updated.studentEmail,
+      'Village Robotics Signup Denied',
+      `<div style="font-family: sans-serif; line-height: 1.5;">
+         <h2>Hello ${updated.studentName},</h2>
+         <p>Your submission has been denied. We will notify you further for more updates.</p>
+         <br/>
+         <p>The Village Tech Team</p>
+       </div>`
+    );
   }
 
-  res.json({ message: 'Status updated successfully' });
+  if (!success.success) {
+    return res.status(500).json({ success : false, error: 'Failed to send email notification', message: success.error });
+  }
+  res.json({ success: true, message: 'Status updated successfully' });
+  
 }
