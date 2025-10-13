@@ -4,9 +4,9 @@ const {
   studentPOST: studentSave,
   studentGET: studentFetch,
   roomGET: roomFetch,
-  roomsGET: roomsFetch,
-  getStudentDB
+  roomsGET: roomsFetch
 } = require("../db/wolfDB");
+const { send } = require("./send")
 const { Grade } = require("../models/Wolf");
 
 const { FormData } = require("formdata-node");
@@ -35,7 +35,7 @@ async function studentGET(req, res) {
 
     form.set("room", new File([Buffer.from(JSON.stringify(student.room))], "room.json", { type: "application/json" }));
 
-    form.set("approved", new File([Buffer.from(JSON.stringify(student.approved))], "approved.json", { type: "application/json" }));
+    form.set("status", new File([Buffer.from(JSON.stringify(student.status))], "status.json", { type: "application/json" }));
 
     const pdfFileIds = student.files || [];
     for (const [index, rawId] of pdfFileIds.entries()) {
@@ -89,7 +89,7 @@ async function studentsGET(req, res) {
         const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
         const chunks = [];
 
-        await new Promise ((resolve, reject) => {
+        await new Promise((resolve, reject) => {
           bucket.openDownloadStream(fileId)
             .on("data", c => chunks.push(c))
             .on("error", reject)
@@ -104,7 +104,7 @@ async function studentsGET(req, res) {
       studentsWithPdfs.push({
         email: student.email,
         room: student.room,
-        approved: !!student.approved,
+        status: student.status,
         pdfs: pdfBlobs
       });
     }
@@ -166,12 +166,17 @@ async function studentPOST(req, res) {
       return res.status(500).json({ error: "Verification failed after saving record" });
     }
 
+    try {
+      await send({
+        email, subject: "Submission Recieved - Pending Approval"
+      });
+      console.log(`Registration email sent to ${email}`);
+    } catch (err) {
+      console.error("Failed to send registration email:", err);
+    }
+
     res.status(201).json({
-      message: "Student record saved successfully.",
-      grade: gradex,
-      email,
-      room,
-      fileIds,
+      message: "Student record saved & email sent successfully.", grade: gradex, email, room, fileIds
     });
   } catch (err) {
     console.error("Error in studentPOST:", err);
@@ -181,10 +186,10 @@ async function studentPOST(req, res) {
 
 async function studentPATCH(req, res) {
   try {
-    const { grade, email, approved } = req.body;
+    const { grade, email, status } = req.body;
 
-    if (!grade || !email || typeof approved !== 'boolean') {
-      return res.status(400).json({ error: "Missing grade, email, or invalid approved value" });
+    if (!grade || !email || ![-1, 0, 1].includes(status)) {
+      return res.status(400).json({ error: "Missing grade, email, or invalid status value" });
     }
 
     const gradex = parseInt(grade, 10);
@@ -192,14 +197,25 @@ async function studentPATCH(req, res) {
 
     const result = await Grade.updateOne(
       { grade: gradex, "students.email": email },
-      { $set: { "students.$.approved": approved } }
+      { $set: { "students.$.status": status } }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    res.status(200).json({ message: "Student updated", grade: gradex, email, approved });
+    try {
+      if (status === 1) {
+        await send(email, "Submission Approved", "approved");
+      } else if (status === -1) {
+        await send (email, "Submission Rejected", "rejected")
+      }
+      console.log(`Approval/Rejection email sent to ${email}`);
+    } catch (err) {
+      console.error("Failed to send approval/rejection email:", err);
+    }
+
+    res.status(200).json({ message: "Student updated", grade: gradex, email, status });
   } catch (err) {
     console.error("Error in studentPATCH:", err);
     res.status(500).json({ error: "Internal server error" });

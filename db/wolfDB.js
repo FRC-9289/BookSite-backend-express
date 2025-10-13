@@ -44,7 +44,7 @@ async function uploadPDF(file, email) {
 }
 
 async function studentPOST(grade, email, room, fileIds) {
-  const student = { email, room, files: fileIds, approved: false };
+  const student = { email, room, files: fileIds, status: 0 };
 
   const result = await Grade.updateOne(
     { grade, "students.email": email },

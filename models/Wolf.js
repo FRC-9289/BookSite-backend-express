@@ -10,7 +10,7 @@ const studentSchema = new mongoose.Schema({
     type: String,
     match: /^[a-f\d]{24}$/i
   }],
-  approved: Boolean
+  status: Number
 });
 
 const gradeSchema = new mongoose.Schema({
