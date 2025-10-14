@@ -1,6 +1,7 @@
 import express from "express";
-import "./db/db.js"; // MongoDB connection
-import routes from "./routes/Router.js";
+import "./utils/db/db.js"; // MongoDB connection
+import studentRouter from './Student/routes.js';
+import adminRouter from './Admin/routes.js';
 import cors from "cors";
 
 const app = express();
@@ -13,13 +14,14 @@ app.use(cors({
 
 app.use(express.json());
 
-app.use('/api', routes)
+app.use('/api/student', studentRouter);
+app.use('/api/admin', adminRouter)
 
 app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is healthy" });
 });
 
-// Listen on port 0 (random free port)
+
 const server = app.listen(8000, () => {
   const port = server.address().port;
   console.log(`Server running on http://localhost:${port}`);

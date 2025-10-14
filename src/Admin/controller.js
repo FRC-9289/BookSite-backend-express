@@ -1,0 +1,108 @@
+import { studentGETById, updateStudentSubmissionById } from "./service.js";
+import { sendEmail } from "../utils/sendMail.js";
+import { downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
+
+export async function manageStatus(req,res){
+    const { status, submissionId } = req.query;
+  
+    console.log("manageStatus called with:", { status, submissionId });
+  
+    const updated = await studentGETById(submissionId);
+    if (!updated) return res.status(404).json({ error: 'Submission not found' });
+  
+    let success;
+  
+    await updateStudentSubmissionById(submissionId, 'status', status);
+  
+    console.log(`Updating Submission of ID: ${submissionId} to status: ${status}`);
+    console.log(`Sending email to ${updated.email} (${updated.name})`);
+  
+    // Send approval email if approved
+    if (status === 'Approved') {
+      success = await sendEmail(
+        updated.email,
+        'Signup Approved',
+        `<div style="font-family: sans-serif; line-height: 1.5;">
+           <h2>Hello ${updated.name},</h2>
+           <p>Your submission has been approved. Welcome aboard!</p>
+           <br/>
+           <p>The Village Tech Team</p>
+         </div>`
+      );
+    } else if (status === 'Pending') {
+      success = await sendEmail(
+        updated.email,
+        'Signup Pending',
+        `<div style="font-family: sans-serif; line-height: 1.5;">
+           <h2>Hello ${updated.name},</h2>
+           <p>Your submission is pending. We will notify you further for more updates.</p>
+           <br/>
+           <p>The Village Tech Team</p>
+         </div>`
+      );
+    } else if (status === 'Denied') {
+      success = await sendEmail(
+        updated.email,
+        'Signup Denied',
+        `<div style="font-family: sans-serif; line-height: 1.5;">
+           <h2>Hello ${updated.name},</h2>
+           <p>Your submission has been denied. We will notify you further for more updates.</p>
+           <br/>
+           <p>The Village Tech Team</p>
+         </div>`
+      );
+    }
+  
+    if (!success.success) {
+      return res.status(500).json({ success : false, error: 'Failed to send email notification', message: success.error });
+    }
+    res.json({ success: true, message: 'Status updated successfully' });
+    
+  }
+
+/**
+ * Get all submissions
+ */
+export async function getSubmissions(req, res) {
+    try {
+        const submissions = await submissionsGET();
+    
+        // Prepare the populated submissions array
+        const populatedSubmissions = [];
+    
+        for (const submission of submissions) {
+        const populated = { ...submission, filesData: [] };
+    
+        if (Array.isArray(submission.files) && submission.files.length > 0) {
+            for (const fileId of submission.files) {
+            try {;
+                const pdfBuffer = await downloadPDF(fileId);
+                populated.filesData.push({
+                fileId,
+                fileName : (await getPDFMetadata(fileId))?.filename || "unknown.pdf",
+                base64: pdfBuffer.toString("base64"),
+                mimeType: "application/pdf",
+                });
+            } catch (err) {
+                console.warn(`⚠️ Failed to download file ${fileId}:`, err.message);
+                populated.filesData.push({
+                fileId,
+                error: "Failed to retrieve file from GridFS",
+                });
+            }
+            }
+        }
+    
+        populatedSubmissions.push(populated);
+        }
+    
+        // ✅ Only send response ONCE after all processing is done
+        return res.status(200).json(populatedSubmissions);
+    
+    } catch (err) {
+        console.error("❌ Error in submissionGET:", err);
+        if (!res.headersSent) {
+        res.status(500).json({ error: "Internal Server Error" });
+        }
+    }
+    }

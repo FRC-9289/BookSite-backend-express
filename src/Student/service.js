@@ -1,24 +1,9 @@
-import { MongoClient, GridFSBucket, ObjectId } from "mongodb";
-import fs from "fs";
-
-const uri = process.env.MONGO_URI || "mongodb://localhost:27017";
-const client = new MongoClient(uri, { useUnifiedTopology: true });
-
-let db = null;
-
-export async function getStudentDB() {
-  if (db) return db;
-
-  await client.connect();
-  db = client.db("students");
-  console.log("Connected to MongoDB:", uri);
-
-  return db;
-}
+import { GridFSBucket, ObjectId } from "mongodb";
+import { initStudentDB } from "../utils/db/db.js";
 
 export async function getGridFSBucket() {
-  const database = await getStudentDB();
-  return new GridFSBucket(db, { bucketName: "files" });
+  const database = await initStudentDB();
+  return new GridFSBucket(database, { bucketName: "files" });
 }
 
 export async function uploadPDF(file, email) {
@@ -37,7 +22,7 @@ export async function uploadPDF(file, email) {
 }
 
 export async function getPDFMetadata(fileId) {
-  const database = await getStudentDB();
+  const database = await initStudentDB();
   const bucket = await getGridFSBucket();
 
   const filesCollection = database.collection("files.files");
@@ -68,7 +53,7 @@ export async function getPDFMetadata(fileId) {
 }
 
 export async function studentPOST(gradeNumber, email, room, fileIds, name) {
-  const db = await getStudentDB();
+  const db = await initStudentDB();
   const collection = db.collection("data");
 
   const student = {
@@ -89,7 +74,7 @@ export async function studentPOST(gradeNumber, email, room, fileIds, name) {
 }
 
 export async function studentGETByGrade(grade, email) {
-  const db = await getStudentDB();
+  const db = await initStudentDB();
   const results = await db
     .collection("data")
     .find(
@@ -102,7 +87,7 @@ export async function studentGETByGrade(grade, email) {
 }
 
 export async function studentGETById(submissionId) {
-  const db = await getStudentDB();
+  const db = await initStudentDB();
   const results = await db
     .collection("data")
     .find(
@@ -115,14 +100,14 @@ export async function studentGETById(submissionId) {
 }
 
 export async function studentsGET(gradeNumber) {
-  return (await getStudentDB())
+  return (await initStudentDB())
     .collection("data")
     .find({ grade: gradeNumber })
     .toArray();
 }
 
 export async function roomGET(gradeNumber, roomKey) {
-  const students = await (await getStudentDB())
+  const students = await (await initStudentDB())
     .collection("data")
     .find(
       { grade: gradeNumber, room: roomKey },
@@ -134,7 +119,7 @@ export async function roomGET(gradeNumber, roomKey) {
 }
 
 export async function roomsGET(gradeNumber) {
-  const db = await getStudentDB();
+  const db = await initStudentDB();
 
   
   const students = await db
@@ -157,7 +142,7 @@ export async function roomsGET(gradeNumber) {
 }
 
 export async function updateStudentSubmissionById(submissionId, key, value) {
-  const db = await getStudentDB();
+  const db = await initStudentDB();
   const collection = db.collection("data");
 
   const update = { $set: { [key]: value, updatedAt: new Date() } };
@@ -177,22 +162,9 @@ export async function updateStudentSubmissionById(submissionId, key, value) {
  * Fetch all submissions
  */
 export async function submissionsGET(){
-  const db = await getStudentDB();
+  const db = await initStudentDB();
 
   const submissions = await db.collection("data").find({}).toArray();
 
   return submissions
-}
-
-export async function downloadPDF(fileId) {
-  const bucket = await getGridFSBucket();
-
-  return new Promise((resolve, reject) => {
-    const downloadStream = bucket.openDownloadStream(fileId);
-    const chunks = [];
-
-    downloadStream.on("data", (chunk) => chunks.push(chunk));
-    downloadStream.on("error", reject);
-    downloadStream.on("end", () => resolve(Buffer.concat(chunks)));
-  });
 }

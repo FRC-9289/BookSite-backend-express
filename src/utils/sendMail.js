@@ -14,7 +14,7 @@ export async function sendEmail(to, subject, html) {
     });
 
     const mailOptions = {
-      from: `"The Village Tech Team" <${process.env.GMAIL_USER}>`,
+      from: `"Notifier" <${process.env.GMAIL_USER}>`,
       to: to,
       subject: subject,
       html: html,
