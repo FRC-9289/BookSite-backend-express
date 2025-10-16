@@ -63,10 +63,19 @@ export async function postStudent(req, res) {
       return res.status(500).json({ error: "Verification failed after saving record" });
     }
 
-    // const res = await sendConfirmationEmail(email, gradex, room);
-    // if(!res.success){
-    //   throw new Error(res.error);
-    // }
+    const res = await sendEmail({
+      to: submission.email,
+      subject: 'Successfully Joined Room',
+      html: `
+        <div style="font-family: sans-serif; line-height: 1.5;">
+          <h2>Hello ${submission.name},</h2>
+          <p>You have successfully joined room ${room}</p>
+          <p>We will notify you further with any more updates.</p>
+          <br/>
+          <p>The Village Tech Team</p>
+        </div>
+      `
+    });
 
     res.status(201).json({
       submissionId: savedData._id,
