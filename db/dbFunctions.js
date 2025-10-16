@@ -181,7 +181,7 @@ export async function addCommentToSubmission(submissionId, comment) {
   const collection = db.collection("data");
 
   const commentObj = {
-    admin: "Admin", // You can modify this to get admin name from auth
+    admin: "Admin",
     comment: comment,
     timestamp: new Date()
   };
