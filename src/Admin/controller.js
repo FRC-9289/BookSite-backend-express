@@ -2,22 +2,21 @@ import { studentGETById, updateStudentSubmissionById } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
 import { downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
 
-export async function manageStatus(req,res){
+export async function manageStatus(req, res) {
+  try {
     const { status, submissionId } = req.query;
-  
     console.log("manageStatus called with:", { status, submissionId });
-  
+
     const updated = await studentGETById(submissionId);
     if (!updated) return res.status(404).json({ error: 'Submission not found' });
-  
-    let success;
-  
+
     await updateStudentSubmissionById(submissionId, 'status', status);
-  
+
     console.log(`Updating Submission of ID: ${submissionId} to status: ${status}`);
     console.log(`Sending email to ${updated.email} (${updated.name})`);
-  
-    // Send approval email if approved
+
+    let success = { success: true };
+
     if (status === 'Approved') {
       success = await sendEmail(
         updated.email,
@@ -52,13 +51,15 @@ export async function manageStatus(req,res){
          </div>`
       );
     }
-  
-    if (!success.success) {
-      return res.status(500).json({ success : false, error: 'Failed to send email notification', message: success.error });
-    }
-    res.json({ success: true, message: 'Status updated successfully' });
-    
+
+    console.log(success);
+    res.status(success.success ? 200 : 500).json(success);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
+}
+
 
 /**
  * Get all submissions
@@ -106,3 +107,7 @@ export async function getSubmissions(req, res) {
         }
     }
     }
+
+export async function addComment(comment){
+  
+}

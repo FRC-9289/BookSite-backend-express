@@ -89,3 +89,8 @@ export async function downloadPDF(fileId) {
       downloadStream.on("end", () => resolve(Buffer.concat(chunks)));
     });
   }
+
+export async function addComment(comment, submissionId){
+  const submission = await studentGETById(submissionId);
+  submission.update
+}
