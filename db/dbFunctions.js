@@ -136,13 +136,13 @@ export async function roomGET(gradeNumber, roomKey) {
 export async function roomsGET(gradeNumber) {
   const db = await getStudentDB();
 
-  
+
   const students = await db
     .collection("data")
     .find({ grade: gradeNumber }, { projection: { room: 1, email: 1, name : 1} })
     .toArray();
 
-  
+
   const roomMap = {};
   for (const student of students) {
     if (!student.room) continue;
@@ -175,6 +175,69 @@ export async function updateStudentSubmissionById(submissionId, key, value) {
 
   return result;
 }
+
+export async function addCommentToSubmission(submissionId, comment) {
+  const db = await getStudentDB();
+  const collection = db.collection("data");
+
+  const commentObj = {
+    admin: "Admin", // You can modify this to get admin name from auth
+    comment: comment,
+    timestamp: new Date()
+  };
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(submissionId) },
+    { $push: { comments: commentObj }, $set: { updatedAt: new Date() } }
+  );
+
+  if (result.matchedCount === 0) {
+    throw new Error("No submission found with the given ID");
+  }
+
+  return result;
+}
+
+export async function createGradeConfig(grade, maleRooms, femaleRooms) {
+  const db = await getStudentDB();
+  const collection = db.collection("gradeconfigs");
+
+  const config = {
+    grade: grade,
+    maleRooms: maleRooms,
+    femaleRooms: femaleRooms,
+    updatedAt: new Date()
+  };
+
+  await collection.updateOne(
+    { grade: grade },
+    { $set: config },
+    { upsert: true }
+  );
+
+  return config;
+}
+
+export async function getGradeConfig(grade) {
+  const db = await getStudentDB();
+  const collection = db.collection("gradeconfigs");
+
+  const config = await collection.findOne({ grade: grade });
+
+  if (!config) {
+    // Return default config if not found
+    return {
+      maleRooms: [3, 3, 3],
+      femaleRooms: [3, 3, 3]
+    };
+  }
+
+  return {
+    maleRooms: config.maleRooms,
+    femaleRooms: config.femaleRooms
+  };
+}
+
 /**
  * Fetch all submissions
  */
