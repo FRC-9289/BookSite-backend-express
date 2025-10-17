@@ -110,9 +110,25 @@ export async function getSubmissions(req, res) {
 export async function addComment(req, res){
   console.log(`Body: ${req}`);
   const { comment, submissionId } = req.body;
+
   try {
     const { commentId } = await pushComment(comment, submissionId);
     res.status(200).json({ success : true, commentId});
+
+    const student = await studentGETById(submissionId);
+
+    const email = student.email;
+    const name = student.name;
+    sendEmail(email, "You have a new comment on your submission", `
+      <h1>You have a new comment on your submission</h1>
+      <div style="font-family: sans-serif; line-height: 1.5;">
+        <h2>Hello ${name},</h2>
+        <p>A new comment has been left on your submission:</p>
+        <p>${comment}</p>
+        <br/>
+        <p>The Village Tech Team</p>
+      </div>
+      `)
   } catch(error){
     res.status(500).json({err : error.toString()});
   }
