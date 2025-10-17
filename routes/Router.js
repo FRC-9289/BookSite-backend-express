@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { postStudent, getStudentByGrade, getRoom, getRoomsSubmissions, manageStatus, getSubmissions, addComment, createGradeConfigEndpoint, getGradeConfigEndpoint} from "../controllers/Student/controller.js";
+import { postStudent, getStudentByGrade, getRoom, getRoomsSubmissions, manageStatus, getSubmissions, createGradeConfigEndpoint, getGradeConfigEndpoint} from "../controllers/Student/controller.js";
 
 const router = Router();
 
@@ -22,7 +22,7 @@ router.get("/rooms-get", authMiddleware, getRoomsSubmissions);
 router.patch("/manage-status",authMiddleware, manageStatus);
 router.post("/send-email", authMiddleware, manageStatus);
 
-router.post("/add-comment", authMiddleware, addComment);
+// TODO: router.post("/add-comment", authMiddleware, addComment);
 router.post("/create-grade-config", authMiddleware, createGradeConfigEndpoint);
 router.get("/get-grade-config", authMiddleware, getGradeConfigEndpoint);
 
