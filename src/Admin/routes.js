@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { manageStatus, getSubmissions } from "./controller.js";
+import { manageStatus, getSubmissions, addComment } from "./controller.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = new Router();
@@ -9,5 +9,8 @@ router.patch("/manage-status", authMiddleware, manageStatus);
 
 // Get all submissions (for admin view)
 router.get("/submissions", authMiddleware, getSubmissions);
+
+//Add comment
+router.post("/add-comment", authMiddleware, addComment);
 
 export default router;

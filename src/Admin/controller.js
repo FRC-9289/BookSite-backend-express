@@ -1,6 +1,5 @@
-import { studentGETById, updateStudentSubmissionById } from "./service.js";
+import { pushComment, studentGETById, updateStudentSubmissionById, downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
-import { downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
 
 export async function manageStatus(req, res) {
   try {
@@ -108,6 +107,13 @@ export async function getSubmissions(req, res) {
     }
     }
 
-export async function addComment(comment){
-  
+export async function addComment(req, res){
+  console.log(`Body: ${req}`);
+  const { comment, submissionId } = req.body;
+  try {
+    const { commentId } = await pushComment(comment, submissionId);
+    res.status(200).json({ success : true, commentId});
+  } catch(error){
+    res.status(500).json({err : error.toString()});
+  }
 }

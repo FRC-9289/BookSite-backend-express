@@ -90,7 +90,27 @@ export async function downloadPDF(fileId) {
     });
   }
 
-export async function addComment(comment, submissionId){
-  const submission = await studentGETById(submissionId);
-  submission.update
-}
+
+  export async function pushComment(commentText, submissionId) {
+    const db = await initStudentDB();
+    const studentData = db.collection("data");
+  
+    const commentId = new ObjectId();
+    const commentObj = {
+      _id: commentId,
+      text: commentText,
+      createdAt: new Date(),
+    };
+  
+    // Add comment to the array
+    const result = await studentData.updateOne(
+      { _id: new ObjectId(submissionId) },
+      { $push: { comments: commentObj } }
+    );
+  
+    if (result.modifiedCount === 0) {
+      throw new Error("Failed to add comment: submission not found");
+    }
+  
+    return { commentId: commentId.toString() };
+  }
