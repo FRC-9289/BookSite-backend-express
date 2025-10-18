@@ -16,4 +16,10 @@ router.post("/add-comment", authMiddleware, addComment);
 //Fetch comments
 router.get("/get-comments", authMiddleware, getComments);
 
+// Create grade config
+router.post("/create-grade-config", authMiddleware, createGradeConfig);
+
+// Get grade config
+router.get("/get-grade-config", authMiddleware, getGradeConfig);
+
 export default router;

@@ -149,3 +149,42 @@ export async function getComments(req, res) {
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
+
+export async function createGradeConfig(req, res) {
+  const { grade, maleRooms, femaleRooms } = req.body;
+
+  if (!grade || !maleRooms || !femaleRooms) {
+    return res.status(400).json({ success: false, error: "Missing required fields: grade, maleRooms, femaleRooms" });
+  }
+
+  if (!Array.isArray(maleRooms) || !Array.isArray(femaleRooms)) {
+    return res.status(400).json({ success: false, error: "maleRooms and femaleRooms must be arrays" });
+  }
+
+  try {
+    const result = await createGradeConfig(grade, maleRooms, femaleRooms);
+    res.status(200).json({ success: true, message: "Grade config created/updated successfully" });
+  } catch (err) {
+    console.error("Error creating grade config:", err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
+
+export async function getGradeConfig(req, res) {
+  const { grade } = req.query;
+
+  if (!grade) {
+    return res.status(400).json({ success: false, error: "Missing grade parameter" });
+  }
+
+  try {
+    const config = await getGradeConfig(grade);
+    if (!config) {
+      return res.status(404).json({ success: false, error: "Grade config not found" });
+    }
+    res.status(200).json({ success: true, config });
+  } catch (err) {
+    console.error("Error fetching grade config:", err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
