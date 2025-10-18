@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-export async function send(to, subject, status = "pending") {
+export async function send(to, subject, status = "pending", reason = "") {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -10,16 +10,18 @@ export async function send(to, subject, status = "pending") {
       },
     });
 
+    let name = to.replace(/_/g, " ").replace(/(^\w|\s\w)(?=\w*@)/g, c => c.toUpperCase()).split("@")[0];
+
     let html;
     if (status === "approved") {
-      html = getApprovalEmailContent(to);
+      html = getApprovalEmailContent(name);
     } else if (status === "rejected") {
-      html = getRejectedEmailContent(to);
+      html = getRejectedEmailContent(name, reason);
     } else {
-      html = getPendingEmailContent(to);
+      html = getPendingEmailContent(name);
     }
     const mailOptions = {
-      from: `"The Village Tech Team" <${process.env.USER}>`,
+      from: `"Wolftech Industries" <${process.env.USER}>`,
       to,
       subject,
       html,
@@ -35,41 +37,40 @@ export async function send(to, subject, status = "pending") {
   }
 }
 
-function getApprovalEmailContent(to) {
+function getApprovalEmailContent(name) {
   return `
     <div style="font-family: Arial, sans-serif; color: #333;">
-      <h1>You've Been Approved!</h1>
-      <p>Dear ${to},</p>
+      <h1>Application Approved</h1>
+      <p>Dear ${name},</p>
       <p>We are pleased to inform you that your request has been approved.</p>
-      <p>Thank you for being a part of our community — congratulations!</p>
       <p>Best Regards,</p>
-      <p><b>The Village Robotics Team</b></p>
+      <p><b>Wolftech Industries</b></p>
     </div>
   `;
 }
 
-function getRejectedEmailContent(to) {
+function getRejectedEmailContent(name, reason) {
   return `
     <div style="font-family: Arial, sans-serif; color: #333;">
-      <h1>Application Update</h1>
-      <p>Dear ${to},</p>
+      <h1>Application Rejected</h1>
+      <p>Dear ${name},</p>
       <p>We regret to inform you that your request has been rejected.</p>
-      <p>If you have any questions, please reach out to us.</p>
+      <p>Reason: ${reason}</p>
       <p>Best Regards,</p>
-      <p><b>The Village Robotics Team</b></p>
+      <p><b>Wolftech Industries</b></p>
     </div>
   `;
 }
 
-function getPendingEmailContent(to) {
+function getPendingEmailContent(name) {
   return `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h1>Application Received</h1>
-      <p>Dear ${to},</p>
+      <p>Dear ${name},</p>
       <p>Your application has been received and is currently under review.</p>
-      <p>We’ll notify you once it’s processed.</p>
+      <p>We will notify you once it is processed.</p>
       <p>Best Regards,</p>
-      <p><b>The Village Robotics Team</b></p>
+      <p><b>Wolftech Industries</b></p>
     </div>
   `;
 }

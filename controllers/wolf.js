@@ -20,39 +20,56 @@ async function studentGET(req, res) {
 
   try {
     const { grade, email } = req.query;
-    if (!grade || !email) return res.status(400).json({ error: "Missing grade or email" });
+    if (!grade || !email) {
+      console.warn("studentGET: missing grade or email", { grade, email });
+      return res.status(400).json({ error: "Missing grade or email" });
+    }
 
-    const gradex = parseInt(grade);
-    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
+    const gradex = parseInt(grade, 10);
+    if (isNaN(gradex)) {
+      console.warn("studentGET: invalid grade", grade);
+      return res.status(400).json({ error: "Grade must be an integer" });
+    }
 
     let student = await studentFetch(gradex, email);
+
     if (!student) {
+      console.info(`studentGET: no student found for ${email} grade ${gradex}, creating empty record`);
       await studentSave(gradex, email, "", []);
       student = await studentFetch(gradex, email);
     }
 
     const form = new FormData();
 
-    form.set("room", new File([Buffer.from(JSON.stringify(student.room))], "room.json", { type: "application/json" }));
+    form.set("room", new File([String(student.room ?? "")], "room.txt", { type: "text/plain" }));
 
-    form.set("status", new File([Buffer.from(JSON.stringify(student.status))], "status.json", { type: "application/json" }));
+    form.set("status", new File([String(student.status ?? 0)], "status.txt", { type: "text/plain" }));
 
-    const pdfFileIds = student.files || [];
+    const pdfFileIds = Array.isArray(student.files) ? student.files : [];
     for (const [index, rawId] of pdfFileIds.entries()) {
-      const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
-      const chunks = [];
+      try {
+        const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
+        const chunks = [];
+        await new Promise((resolve, reject) => {
+          const stream = bucket.openDownloadStream(fileId);
+          stream.on("data", (c) => chunks.push(c));
+          stream.on("error", (err) => {
+            console.error(`studentGET: error streaming file ${fileId} for ${email}`, err);
+            reject(err);
+          });
+          stream.on("end", () => resolve());
+        });
 
-      await new Promise((resolve, reject) => {
-        bucket.openDownloadStream(fileId)
-          .on("data", chunk => chunks.push(chunk))
-          .on("error", reject)
-          .on("end", () => resolve());
-      });
+        if (chunks.length === 0) {
+          console.warn(`studentGET: file ${fileId} produced no chunks for ${email}`);
+          continue;
+        }
 
-      if (chunks.length > 0) {
         const fileBuffer = Buffer.concat(chunks);
         const file = new File([fileBuffer], `file_${index}.pdf`, { type: "application/pdf" });
         form.set(`pdf_${index}`, file);
+      } catch (err) {
+        console.error(`studentGET: failed to retrieve file index ${index} for ${email}`, err);
       }
     }
 
@@ -60,9 +77,8 @@ async function studentGET(req, res) {
     res.setHeader("Content-Type", encoder.contentType);
     res.setHeader("Transfer-Encoding", "chunked");
     Readable.from(encoder.encode()).pipe(res);
-
   } catch (err) {
-    console.error(err);
+    console.error("studentGET: unexpected error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -80,12 +96,14 @@ async function studentsGET(req, res) {
 
     const bucket = await getGridFSBucket();
 
-    const studentsWithPdfs = [];
+    const form = new FormData();
 
-    for (const student of doc.students) {
-      const pdfBlobs = [];
+    for (const [i, student] of doc.students.entries()) {
+      form.set(`student_${i}_email`, new File([Buffer.from(student.email)], `email_${i}.txt`, { type: "text/plain" }));
+      form.set(`student_${i}_room`, new File([Buffer.from(student.room || "")], `room_${i}.txt`, { type: "text/plain" }));
+      form.set(`student_${i}_status`, new File([Buffer.from(String(student.status ?? 0))], `status_${i}.txt`, { type: "text/plain" }));
 
-      for (const rawId of student.files || []) {
+      for (const [j, rawId] of (student.files || []).entries()) {
         const fileId = typeof rawId === "string" ? new ObjectId(rawId) : rawId;
         const chunks = [];
 
@@ -97,20 +115,20 @@ async function studentsGET(req, res) {
         });
 
         if (chunks.length > 0) {
-          pdfBlobs.push(new Blob([Buffer.concat(chunks)], { type: "application/pdf" }));
+          const fileBuffer = Buffer.concat(chunks);
+          const file = new File([fileBuffer], `student_${i}_pdf_${j}.pdf`, { type: "application/pdf" });
+          form.set(`student_${i}_pdf_${j}`, file);
         }
       }
-
-      studentsWithPdfs.push({
-        email: student.email,
-        room: student.room,
-        status: student.status,
-        pdfs: pdfBlobs
-      });
     }
 
-    res.status(200).json(studentsWithPdfs);
+    const { FormDataEncoder } = require("form-data-encoder");
+    const { Readable } = require("stream");
+    const encoder = new FormDataEncoder(form);
 
+    res.setHeader("Content-Type", encoder.contentType);
+    res.setHeader("Transfer-Encoding", "chunked");
+    Readable.from(encoder.encode()).pipe(res);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -130,17 +148,9 @@ async function studentPOST(req, res) {
     }
 
     const gradex = parseInt(grade, 10);
-    if (isNaN(gradex)) {
-      return res.status(400).json({ error: "Grade must be a valid integer" });
-    }
+    if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be a valid integer" });
 
     const fileIds = [];
-    console.log("Incoming files:", files.map(f => ({
-      name: f.originalname,
-      mimetype: f.mimetype,
-      hasBuffer: !!f.buffer
-    })));
-
     for (const file of files) {
       try {
         const id = await uploadPDF(file, email);
@@ -154,29 +164,16 @@ async function studentPOST(req, res) {
 
     await studentSave(gradex, email, room, fileIds);
 
-    const saved = await studentFetch(gradex, email);
-    const verified =
-      saved &&
-      saved.room === room &&
-      Array.isArray(saved.files) &&
-      saved.files.length === fileIds.length;
-
-    if (!verified) {
-      console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", saved);
-      return res.status(500).json({ error: "Verification failed after saving record" });
-    }
-
-    try {
-      await send({
-        email, subject: "Submission Recieved - Pending Approval"
-      });
-      console.log(`Registration email sent to ${email}`);
-    } catch (err) {
+    send(email, "Submission Received - Pending Approval").catch(err => {
       console.error("Failed to send registration email:", err);
-    }
+    });
 
     res.status(201).json({
-      message: "Student record saved & email sent successfully.", grade: gradex, email, room, fileIds
+      message: "Student record saved successfully",
+      grade: gradex,
+      email,
+      room,
+      fileIds,
     });
   } catch (err) {
     console.error("Error in studentPOST:", err);
@@ -186,7 +183,7 @@ async function studentPOST(req, res) {
 
 async function studentPATCH(req, res) {
   try {
-    const { grade, email, status } = req.body;
+    const { grade, email, status, reason } = req.body;
 
     if (!grade || !email || ![-1, 0, 1].includes(status)) {
       return res.status(400).json({ error: "Missing grade, email, or invalid status value" });
@@ -195,24 +192,26 @@ async function studentPATCH(req, res) {
     const gradex = parseInt(grade, 10);
     if (isNaN(gradex)) return res.status(400).json({ error: "Grade must be an integer" });
 
+    const updateFields = { "students.$.status": status };
+    if (status === -1) updateFields["students.$.room"] = "";
+
     const result = await Grade.updateOne(
       { grade: gradex, "students.email": email },
-      { $set: { "students.$.status": status } }
+      { $set: updateFields }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    try {
-      if (status === 1) {
-        await send(email, "Submission Approved", "approved");
-      } else if (status === -1) {
-        await send (email, "Submission Rejected", "rejected")
-      }
-      console.log(`Approval/Rejection email sent to ${email}`);
-    } catch (err) {
-      console.error("Failed to send approval/rejection email:", err);
+    if (status === 1) {
+      send(email, "Submission Approved", "approved").catch(err =>
+        console.error("Failed to send approval email:", err)
+      );
+    } else if (status === -1) {
+      send(email, "Submission Rejected", "rejected", reason).catch(err =>
+        console.error("Failed to send rejection email:", err)
+      );
     }
 
     res.status(200).json({ message: "Student updated", grade: gradex, email, status });
@@ -240,8 +239,32 @@ async function roomsGET(req, res) {
     const { grade } = req.query;
     if (!grade) return res.status(400).json({ error: "Missing grade" });
 
-    const gradex = parseInt(grade);
-    const rooms = await roomsFetch(gradex);
+    const gradex = parseInt(grade, 10);
+    if (isNaN(gradex)) return res.status(400).json({ error: "Invalid grade" });
+
+    let rooms = await roomsFetch(gradex);
+
+    if (Array.isArray(rooms)) {
+      rooms = rooms
+        .map(r => Array.isArray(r) ? r : [r])
+        .filter(r => r.length > 0);
+
+      const seen = new Set();
+      const unique = [];
+
+      for (const r of rooms) {
+        const id = r[0];
+        if (!seen.has(id)) {
+          seen.add(id);
+          unique.push(r);
+        }
+      }
+
+      rooms = unique;
+    } else {
+      rooms = [];
+    }
+
     res.status(200).json(rooms);
   } catch (err) {
     console.error("Error in roomsGET:", err);
