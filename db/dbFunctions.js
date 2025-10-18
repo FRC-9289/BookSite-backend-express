@@ -176,28 +176,6 @@ export async function updateStudentSubmissionById(submissionId, key, value) {
   return result;
 }
 
-// TODO: export async function addCommentToSubmission(submissionId, comment) {
-//   const db = await getStudentDB();
-//   const collection = db.collection("data");
-
-//   const commentObj = {
-//     admin: "Admin",
-//     comment: comment,
-//     timestamp: new Date()
-//   };
-
-//   const result = await collection.updateOne(
-//     { _id: new ObjectId(submissionId) },
-//     { $push: { comments: commentObj }, $set: { updatedAt: new Date() } }
-//   );
-
-//   if (result.matchedCount === 0) {
-//     throw new Error("No submission found with the given ID");
-//   }
-
-//   return result;
-// }
-
 export async function createGradeConfig(grade, maleRooms, femaleRooms) {
   const db = await getStudentDB();
   const collection = db.collection("gradeconfigs");

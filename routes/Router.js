@@ -22,7 +22,6 @@ router.get("/rooms-get", authMiddleware, getRoomsSubmissions);
 router.patch("/manage-status",authMiddleware, manageStatus);
 router.post("/send-email", authMiddleware, manageStatus);
 
-// TODO: router.post("/add-comment", authMiddleware, addComment);
 router.post("/create-grade-config", authMiddleware, createGradeConfigEndpoint);
 router.get("/get-grade-config", authMiddleware, getGradeConfigEndpoint);
 

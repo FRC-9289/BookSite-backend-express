@@ -175,43 +175,6 @@ export async function getRoomsSubmissions(req, res) {
   }
 }
 
-// TODO: export async function addComment(req, res) {
-//   try {
-//     const { submissionId, comment } = req.body;
-
-//     if (!submissionId || !comment) {
-//       return res.status(400).json({ error: "Missing submissionId or comment" });
-//     }
-
-//     await addCommentToSubmission(submissionId, comment);
-
-//     // Get student email for notification
-//     const submission = await studentGETById(submissionId);
-//     if (submission) {
-//       await sendEmail({
-//         to: submission.studentEmail,
-//         subject: 'New Comment on Your Submission',
-//         html: `
-//           <div style="font-family: sans-serif; line-height: 1.5;">
-//             <h2>Hello ${submission.studentName},</h2>
-//             <p>You have received a new comment on your submission:</p>
-//             <blockquote style="border-left: 4px solid #ccc; padding-left: 1em; margin: 1em 0;">
-//               ${comment}
-//             </blockquote>
-//             <br/>
-//             <p>The Village Tech Team</p>
-//           </div>
-//         `
-//       });
-//     }
-
-//     res.status(200).json({ message: "Comment added successfully" });
-//   } catch (err) {
-//     console.error("Error in addComment:", err);
-//     res.status(500).json({ error: "Internal server error" });
-//   }
-// }
-
 export async function createGradeConfigEndpoint(req, res) {
   try {
     const { grade, maleRooms, femaleRooms } = req.body;
