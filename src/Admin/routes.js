@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { manageStatus, getSubmissions, addComment } from "./controller.js";
+import { manageStatus, getSubmissions, addComment, getComments } from "./controller.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = new Router();
@@ -12,5 +12,8 @@ router.get("/submissions", authMiddleware, getSubmissions);
 
 //Add comment
 router.post("/add-comment", authMiddleware, addComment);
+
+//Fetch comments
+router.get("/get-comments", authMiddleware, getComments);
 
 export default router;

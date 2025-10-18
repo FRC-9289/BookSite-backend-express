@@ -1,4 +1,4 @@
-import { pushComment, studentGETById, updateStudentSubmissionById, downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
+import { pushComment, studentGETById, updateStudentSubmissionById, downloadPDF, submissionsGET, getPDFMetadata, fetchComments } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
 
 export async function manageStatus(req, res) {
@@ -108,7 +108,6 @@ export async function getSubmissions(req, res) {
     }
 
 export async function addComment(req, res){
-  console.log(`Body: ${req}`);
   const { comment, submissionId } = req.body;
 
   try {
@@ -131,5 +130,22 @@ export async function addComment(req, res){
       `)
   } catch(error){
     res.status(500).json({err : error.toString()});
+  }
+}
+
+export async function getComments(req, res) {
+  const { submissionId } = req.query;
+
+  if (!submissionId) {
+    return res.status(400).json({ success: false, error: "Missing submissionId" });
+  }
+
+  try {
+    const comments = await fetchComments(submissionId);
+
+    res.status(200).json({ success: true, comments });
+  } catch (err) {
+    console.error("Error fetching comments:", err);
+    res.status(500).json({ success: false, error: err.message || err });
   }
 }
