@@ -1,23 +1,21 @@
-import { studentGETById, updateStudentSubmissionById } from "./service.js";
+import { pushComment, studentGETById, updateStudentSubmissionById, downloadPDF, submissionsGET, getPDFMetadata, fetchComments } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
-import { downloadPDF, submissionsGET, getPDFMetadata } from "./service.js";
 
-export async function manageStatus(req,res){
+export async function manageStatus(req, res) {
+  try {
     const { status, submissionId } = req.query;
-  
     console.log("manageStatus called with:", { status, submissionId });
-  
+
     const updated = await studentGETById(submissionId);
     if (!updated) return res.status(404).json({ error: 'Submission not found' });
-  
-    let success;
-  
+
     await updateStudentSubmissionById(submissionId, 'status', status);
-  
+
     console.log(`Updating Submission of ID: ${submissionId} to status: ${status}`);
     console.log(`Sending email to ${updated.email} (${updated.name})`);
-  
-    // Send approval email if approved
+
+    let success = { success: true };
+
     if (status === 'Approved') {
       success = await sendEmail(
         updated.email,
@@ -52,13 +50,15 @@ export async function manageStatus(req,res){
          </div>`
       );
     }
-  
-    if (!success.success) {
-      return res.status(500).json({ success : false, error: 'Failed to send email notification', message: success.error });
-    }
-    res.json({ success: true, message: 'Status updated successfully' });
-    
+
+    console.log(success);
+    res.status(success.success ? 200 : 500).json(success);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
+}
+
 
 /**
  * Get all submissions
@@ -106,3 +106,46 @@ export async function getSubmissions(req, res) {
         }
     }
     }
+
+export async function addComment(req, res){
+  const { comment, submissionId } = req.body;
+
+  try {
+    const { commentId } = await pushComment(comment, submissionId);
+    res.status(200).json({ success : true, commentId});
+
+    const student = await studentGETById(submissionId);
+
+    const email = student.email;
+    const name = student.name;
+    sendEmail(email, "You have a new comment on your submission", `
+      <h1>You have a new comment on your submission</h1>
+      <div style="font-family: sans-serif; line-height: 1.5;">
+        <h2>Hello ${name},</h2>
+        <p>A new comment has been left on your submission:</p>
+        <p>${comment}</p>
+        <br/>
+        <p>The Village Tech Team</p>
+      </div>
+      `)
+  } catch(error){
+    res.status(500).json({err : error.toString()});
+  }
+}
+
+export async function getComments(req, res) {
+  const { submissionId } = req.query;
+
+  if (!submissionId) {
+    return res.status(400).json({ success: false, error: "Missing submissionId" });
+  }
+
+  try {
+    const comments = await fetchComments(submissionId);
+
+    res.status(200).json({ success: true, comments });
+  } catch (err) {
+    console.error("Error fetching comments:", err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
