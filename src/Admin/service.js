@@ -127,3 +127,34 @@ export async function fetchComments(submissionId) {
   // Return only the comments array (or empty array if not found)
   return result?.comments || [];
 }
+
+// Grade Config Functions
+export async function createGradeConfig(grade, maleRooms, femaleRooms) {
+  const db = await initStudentDB();
+  const collection = db.collection("gradeConfigs");
+
+  const config = {
+    grade: parseInt(grade),
+    maleRooms,
+    femaleRooms,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const result = await collection.updateOne(
+    { grade: parseInt(grade) },
+    { $set: config },
+    { upsert: true }
+  );
+
+  return result;
+}
+
+export async function getGradeConfig(grade) {
+  const db = await initStudentDB();
+  const collection = db.collection("gradeConfigs");
+
+  const config = await collection.findOne({ grade: parseInt(grade) });
+
+  return config;
+}
