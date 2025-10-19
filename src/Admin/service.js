@@ -129,7 +129,7 @@ export async function fetchComments(submissionId) {
 }
 
 // Grade Config Functions
-export async function createGradeConfig(grade, maleRooms, femaleRooms) {
+export async function postGradeConfig(grade, maleRooms, femaleRooms) {
   const db = await initStudentDB();
   const collection = db.collection("gradeConfigs");
 
@@ -150,7 +150,7 @@ export async function createGradeConfig(grade, maleRooms, femaleRooms) {
   return result;
 }
 
-export async function getGradeConfig(grade) {
+export async function fetchGradeConfig(grade) {
   const db = await initStudentDB();
   const collection = db.collection("gradeConfigs");
 

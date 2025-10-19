@@ -1,4 +1,14 @@
-import { pushComment, studentGETById, updateStudentSubmissionById, downloadPDF, submissionsGET, getPDFMetadata, fetchComments } from "./service.js";
+import { 
+  pushComment, 
+  studentGETById, 
+  updateStudentSubmissionById, 
+  downloadPDF, 
+  submissionsGET, 
+  getPDFMetadata, 
+  fetchComments, 
+  postGradeConfig,
+  fetchGradeConfig
+ } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
 
 export async function manageStatus(req, res) {
@@ -162,7 +172,7 @@ export async function createGradeConfig(req, res) {
   }
 
   try {
-    const result = await createGradeConfig(grade, maleRooms, femaleRooms);
+    const result = await postGradeConfig(grade, maleRooms, femaleRooms);
     res.status(200).json({ success: true, message: "Grade config created/updated successfully" });
   } catch (err) {
     console.error("Error creating grade config:", err);
@@ -178,7 +188,7 @@ export async function getGradeConfig(req, res) {
   }
 
   try {
-    const config = await getGradeConfig(grade);
+    const config = await fetchGradeConfig(grade);
     if (!config) {
       return res.status(404).json({ success: false, error: "Grade config not found" });
     }
