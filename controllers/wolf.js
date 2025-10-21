@@ -34,9 +34,8 @@ async function studentGET(req, res) {
     let student = await studentFetch(gradex, email);
 
     if (!student) {
-      console.info(`studentGET: no student found for ${email} grade ${gradex}, creating empty record`);
-      await studentSave(gradex, email, "", []);
-      student = await studentFetch(gradex, email);
+      console.info(`studentGET: no student found for ${email} grade ${gradex}`);
+      return res.status(404).json({ error: "Student not found" });
     }
 
     const form = new FormData();
