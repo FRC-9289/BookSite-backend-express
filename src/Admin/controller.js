@@ -188,9 +188,13 @@ export async function getGradeConfig(req, res) {
   }
 
   try {
-    const config = await fetchGradeConfig(grade);
+    let config = await fetchGradeConfig(grade);
     if (!config) {
-      return res.status(404).json({ success: false, error: "Grade config not found" });
+      config = {
+        grade : grade,
+        femaleRooms : [],
+        maleRooms : []
+      }
     }
     res.status(200).json({ success: true, config });
   } catch (err) {

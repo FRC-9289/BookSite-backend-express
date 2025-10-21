@@ -13,10 +13,6 @@ let client = null;
 let db = null;
 
 export async function initStudentDB() {
-  if (db) {
-    // Return existing connection if available
-    return db;
-  }
 
   client = new MongoClient(uri, {
     maxPoolSize: 10,
@@ -26,7 +22,21 @@ export async function initStudentDB() {
 
   await client.connect();
   db = client.db("students");
-  console.log("✅ Connected to MongoDB:", uri);
+  console.log("✅ Connected to MongoDB Student:", uri);
+  return db;
+}
+
+export async function initAdminDB() {
+
+  client = new MongoClient(uri, {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    connectTimeoutMS: 30000,
+  });
+
+  await client.connect();
+  db = client.db("admin");
+  console.log("✅ Connected to MongoDB Admin:", uri);
   return db;
 }
 

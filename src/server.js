@@ -23,6 +23,5 @@ app.get("/health", (req, res) => {
 
 
 const server = app.listen(8000, () => {
-  const port = server.address().port;
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running on http://localhost:${8000}`);
 });

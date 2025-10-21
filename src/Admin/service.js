@@ -1,4 +1,4 @@
-import { initStudentDB } from "../utils/db/db.js";
+import { initAdminDB, initStudentDB } from "../utils/db/db.js";
 import { GridFSBucket, ObjectId } from "mongodb";
 
 export async function getGridFSBucket() {
@@ -130,7 +130,7 @@ export async function fetchComments(submissionId) {
 
 // Grade Config Functions
 export async function postGradeConfig(grade, maleRooms, femaleRooms) {
-  const db = await initStudentDB();
+  const db = await initAdminDB();
   const collection = db.collection("gradeConfigs");
 
   const config = {
@@ -151,7 +151,7 @@ export async function postGradeConfig(grade, maleRooms, femaleRooms) {
 }
 
 export async function fetchGradeConfig(grade) {
-  const db = await initStudentDB();
+  const db = await initAdminDB();
   const collection = db.collection("gradeConfigs");
 
   const config = await collection.findOne({ grade: parseInt(grade) });
