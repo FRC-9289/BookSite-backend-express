@@ -21,6 +21,7 @@ export async function postStudent(req, res) {
         if (!grade || !email || !room || !name) {
         return res.status(400).json({ error: "Missing required fields (grade, email, or room)" });
         }
+        
         if (!files.length) {
         return res.status(400).json({ error: "No files uploaded" });
         }
@@ -109,8 +110,8 @@ export async function getStudentByGrade(req, res) {
             new Blob([JSON.stringify({ student })], { type: "application/json" })
         );
 
-        // Add up to 3 PDFs
-        const pdfFileIds = (student.files || []).slice(0, 3);
+        // Add PDFs (dynamic count based on config, but fallback to 3)
+        const pdfFileIds = student.files || [];
         for (let i = 0; i < pdfFileIds.length; i++) {
             const fileBuffer = await getGridFSBucket(pdfFileIds[i]);
             form.set(

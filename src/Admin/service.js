@@ -129,7 +129,7 @@ export async function fetchComments(submissionId) {
 }
 
 // Grade Config Functions
-export async function postGradeConfig(grade, maleRooms, femaleRooms) {
+export async function postGradeConfig(grade, maleRooms, femaleRooms, numPdfs, pdfNames) {
   const db = await initAdminDB();
   const collection = db.collection("gradeConfigs");
 
@@ -137,6 +137,8 @@ export async function postGradeConfig(grade, maleRooms, femaleRooms) {
     grade: parseInt(grade),
     maleRooms,
     femaleRooms,
+    numPdfs: numPdfs || 3,
+    pdfNames: pdfNames || ['PDF 1', 'PDF 2', 'PDF 3'],
     createdAt: new Date(),
     updatedAt: new Date()
   };
