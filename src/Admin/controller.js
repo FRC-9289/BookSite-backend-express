@@ -161,7 +161,7 @@ export async function getComments(req, res) {
 }
 
 export async function createGradeConfig(req, res) {
-  const { grade, maleRooms, femaleRooms } = req.body;
+  const { grade, maleRooms, femaleRooms, numPdfs, pdfNames } = req.body;
 
   if (!grade || !maleRooms || !femaleRooms) {
     return res.status(400).json({ success: false, error: "Missing required fields: grade, maleRooms, femaleRooms" });
@@ -172,7 +172,7 @@ export async function createGradeConfig(req, res) {
   }
 
   try {
-    const result = await postGradeConfig(grade, maleRooms, femaleRooms);
+    const result = await postGradeConfig(grade, maleRooms, femaleRooms, numPdfs, pdfNames);
     res.status(200).json({ success: true, message: "Grade config created/updated successfully" });
   } catch (err) {
     console.error("Error creating grade config:", err);
@@ -193,7 +193,9 @@ export async function getGradeConfig(req, res) {
       config = {
         grade : grade,
         femaleRooms : [],
-        maleRooms : []
+        maleRooms : [],
+        numPdfs: 3,
+        pdfNames: ['PDF 1', 'PDF 2', 'PDF 3'] // sets default names of uploaded PDFs to PDF 1/2/3
       }
     }
     res.status(200).json({ success: true, config });
