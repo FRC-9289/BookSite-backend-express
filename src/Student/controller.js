@@ -17,10 +17,6 @@ export async function postStudent(req, res) {
         const { grade, email, room, name } = req.body;
         const files = Object.values(req.files || {}).flat();
 
-        // --- Validation ---
-        if (!grade || !email || !room || !name) {
-        return res.status(400).json({ error: "Missing required fields (grade, email, or room)" });
-        }
         if (!files.length) {
         return res.status(400).json({ error: "No files uploaded" });
         }
@@ -44,23 +40,13 @@ export async function postStudent(req, res) {
         await studentPOST(gradex, email, room, fileIds, name);
 
         const savedData = await studentGETByGrade(gradex, email);
-        const verified =
-        savedData &&
-        savedData.room === room &&
-        Array.isArray(savedData.files) &&
-        savedData.files.length === fileIds.length;
-
-        if (!verified) {
-        console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", savedData);
-        return res.status(500).json({ error: "Verification failed after saving record" });
-        }
 
         const success = await sendEmail(
             email,
             'Signup Pending',
             `<div style="font-family: sans-serif; line-height: 1.5;">
             <h2>Hello ${name},</h2>
-            <p>Confirming your submission, you have selected Bus ${room[0]}, Room ${room[2]} (${room[1] == "M" ? "Male" : "Female"})</p>
+            <p>We have received your submission</p>
             <br/>
             <p>The Village Tech Team</p>
             </div>`

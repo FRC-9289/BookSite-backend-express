@@ -36,7 +36,6 @@ export async function initAdminDB() {
 
   await client.connect();
   db = client.db("admin");
-  console.log("✅ Connected to MongoDB Admin:", uri);
   return db;
 }
 
