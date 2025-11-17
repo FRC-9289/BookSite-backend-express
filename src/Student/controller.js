@@ -14,76 +14,113 @@ import { sendEmail } from "../utils/sendMail.js";
 
 export async function postStudent(req, res) {
     try {
-        const { grade, email, room, name } = req.body;
-        const files = Object.values(req.files || {}).flat();
-
-        // --- Validation ---
-        if (!grade || !email || !room || !name) {
-        return res.status(400).json({ error: "Missing required fields (grade, email, or room)" });
-        }
-        if (!files.length) {
+      const { grade, email, room, name, pdfNames } = req.body;
+      const files = Object.values(req.files || {}).flat();
+  
+      // --- Validation ---
+      if (!grade || !email || !room || !name || !pdfNames) {
+        return res.status(400).json({ error: "Missing required fields (grade, email, room, or pdfNames)" });
+      }
+      if (!files.length) {
         return res.status(400).json({ error: "No files uploaded" });
-        }
-
-        const gradex = parseInt(grade, 10);
-        if (isNaN(gradex)) {
+      }
+  
+      const gradex = parseInt(grade, 10);
+      if (isNaN(gradex)) {
         return res.status(400).json({ error: "Grade must be a valid integer" });
-        }
-
-        const fileIds = [];
-        for (const file of files) {
+      }
+  
+      // Parse pdfNames if sent as JSON string
+      const pdfTypes = typeof pdfNames === "string" ? JSON.parse(pdfNames) : pdfNames;
+  
+      if (!Array.isArray(pdfTypes) || pdfTypes.length === 0) {
+        return res.status(400).json({ error: "pdfNames must be a non-empty array" });
+      }
+  
+      // Map files to their types
+      const fileIds = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const typeName = pdfTypes[i] || `File ${i + 1}`;
         try {
-            const id = await uploadPDF(file, email);
-            fileIds.push(id);
+          const id = await uploadPDF(file, email);
+          fileIds.push({ id, type: typeName });
         } catch (uploadErr) {
-            console.error("File upload failed:", file.originalname, uploadErr);
-            return res.status(500).json({ error: `Failed to upload file: ${file.originalname}` });
+          console.error("File upload failed:", file.originalname, uploadErr);
+          return res.status(500).json({ error: `Failed to upload file: ${file.originalname}` });
         }
-        }
-
-        await studentPOST(gradex, email, room, fileIds, name);
-
-        const savedData = await studentGETByGrade(gradex, email);
-        const verified =
+      }
+  
+      // Save to database
+      await studentPOST(gradex, email, room, fileIds, name, pdfTypes);
+  
+      // Verify saved record
+      const savedData = await studentGETByGrade(gradex, email);
+      const verified =
         savedData &&
         savedData.room === room &&
         Array.isArray(savedData.files) &&
         savedData.files.length === fileIds.length;
-
-        if (!verified) {
+  
+      if (!verified) {
         console.error("Verification failed. Expected:", { email, room, fileIds }, "Got:", savedData);
         return res.status(500).json({ error: "Verification failed after saving record" });
-        }
-
-        const success = await sendEmail(
-            email,
+      }
+  
+      // Send confirmation email
+      const success = await sendEmail(
+        email,
             'Signup Pending',
-            `<div style="font-family: sans-serif; line-height: 1.5;">
-            <h2>Hello ${name},</h2>
-            <p>Confirming your submission, you have selected Bus ${room[0]}, Room ${room[2]} (${room[1] == "M" ? "Male" : "Female"})</p>
-            <br/>
-            <p>The Village Tech Team</p>
+            `<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
+            <h2 style="color: #4caf50; margin-bottom: 20px;">Hello ${name},</h2>
+            <p style="font-size: 16px; margin-bottom: 10px;">
+                Thank you for your submission! Here are your selected details:
+            </p>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr>
+                <td style="padding: 8px; font-weight: bold;">Bus:</td>
+                <td style="padding: 8px;">${room[0]}</td>
+                </tr>
+                <tr>
+                <td style="padding: 8px; font-weight: bold;">Room:</td>
+                <td style="padding: 8px;">${room[2]}</td>
+                </tr>
+                <tr>
+                <td style="padding: 8px; font-weight: bold;">Gender:</td>
+                <td style="padding: 8px;">${room[1] === "M" ? "Male" : "Female"}</td>
+                </tr>
+            </table>
+            <p style="font-size: 16px;">
+                Your submission is currently <strong>Pending</strong>. We will notify you once your room is confirmed.
+            </p>
+            <p style="font-size: 16px; margin-top: 30px;">
+                Best regards,<br/>
+                <strong>The Village Tech Team</strong>
+            </p>
             </div>`
-        );
-
-        if(!success.success){
-            throw new Error("Email could not be sent to ", email);
-        }
-        res.status(201).json({
+      );
+  
+      if (!success.success) {
+        throw new Error("Email could not be sent to " + email);
+      }
+  
+      // ✅ Keep same response structure
+      res.status(201).json({
         submissionId: savedData._id,
         message: "Student record saved and confirmation email sent.",
         grade: gradex,
         email,
         room,
         name,
-        fileIds,
-        });
-
+        fileIds, // includes mapping {id, type}
+      });
+  
     } catch (err) {
-        console.error("Error in studentPOST:", err);
-        res.status(500).json({ error: "Internal server error" });
+      console.error("Error in studentPOST:", err);
+      res.status(500).json({ error: "Internal server error" });
     }
-}
+  }
+  
 
 export async function getStudentByGrade(req, res) {
     try {

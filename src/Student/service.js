@@ -52,7 +52,7 @@ export async function getPDFMetadata(fileId) {
   });
 }
 
-export async function studentPOST(gradeNumber, email, room, fileIds, name) {
+export async function studentPOST(gradeNumber, email, room, fileIds, name, pdfNames) {
   const db = await initStudentDB();
   const collection = db.collection("data");
 
@@ -62,6 +62,7 @@ export async function studentPOST(gradeNumber, email, room, fileIds, name) {
     room,
     name: name || "",
     files: fileIds,
+    pdfNames : [...pdfNames],
     updatedAt: new Date(),
     status: "Pending"
   };
