@@ -81,29 +81,31 @@ export async function getSubmissions(req, res) {
         const populatedSubmissions = [];
     
         for (const submission of submissions) {
-        const populated = { ...submission, filesData: [] };
+          const populated = { ...submission, filesData: [] };
+
+          console.log(submission);
     
-        if (Array.isArray(submission.files) && submission.files.length > 0) {
-            for (const fileId of submission.files) {
-            try {;
-                const pdfBuffer = await downloadPDF(fileId);
-                populated.filesData.push({
-                fileId,
-                fileName : (await getPDFMetadata(fileId))?.filename || "unknown.pdf",
-                base64: pdfBuffer.toString("base64"),
-                mimeType: "application/pdf",
-                });
-            } catch (err) {
-                console.warn(`⚠️ Failed to download file ${fileId}:`, err.message);
-                populated.filesData.push({
-                fileId,
-                error: "Failed to retrieve file from GridFS",
-                });
-            }
-            }
-        }
-    
-        populatedSubmissions.push(populated);
+          if (Array.isArray(submission.files) && submission.files.length > 0) {
+              for (const fileId of submission.files) {
+              try {;
+                  const pdfBuffer = await downloadPDF(fileId.id);
+                  populated.filesData.push({
+                  fileId,
+                  fileName : (await getPDFMetadata(fileId.id))?.filename || "unknown.pdf",
+                  base64: pdfBuffer.toString("base64"),
+                  mimeType: "application/pdf",
+                  });
+              } catch (err) {
+                  console.warn(`⚠️ Failed to download file ${fileId.id}:`, err.message);
+                  populated.filesData.push({
+                  fileId,
+                  error: "Failed to retrieve file from GridFS",
+                  });
+              }
+              }
+          }
+      
+          populatedSubmissions.push(populated);
         }
     
         // ✅ Only send response ONCE after all processing is done

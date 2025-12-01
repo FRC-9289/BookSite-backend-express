@@ -13,63 +13,78 @@ import { Readable } from "stream";
 import { sendEmail } from "../utils/sendMail.js";
 
 export async function postStudent(req, res) {
-    try {
-        const { grade, email, room, name } = req.body;
-        const files = Object.values(req.files || {}).flat();
+  try {
+      const { grade, email, room, name, pdfNames } = req.body; // include pdfNames
+      const files = Object.values(req.files || {}).flat();
 
-        if (!files.length) {
-        return res.status(400).json({ error: "No files uploaded" });
-        }
+      if (!files.length) {
+          return res.status(400).json({ error: "No files uploaded" });
+      }
 
-        const gradex = parseInt(grade, 10);
-        if (isNaN(gradex)) {
-        return res.status(400).json({ error: "Grade must be a valid integer" });
-        }
+      const gradex = parseInt(grade, 10);
+      if (isNaN(gradex)) {
+          return res.status(400).json({ error: "Grade must be a valid integer" });
+      }
 
-        const fileIds = [];
-        for (const file of files) {
-        try {
-            const id = await uploadPDF(file, email);
-            fileIds.push(id);
-        } catch (uploadErr) {
-            console.error("File upload failed:", file.originalname, uploadErr);
-            return res.status(500).json({ error: `Failed to upload file: ${file.originalname}` });
-        }
-        }
+      // Parse pdfNames if sent as JSON string
+      const pdfTypes = typeof pdfNames === "string" ? JSON.parse(pdfNames) : pdfNames;
+      if (!Array.isArray(pdfTypes) || pdfTypes.length === 0) {
+          return res.status(400).json({ error: "pdfNames must be a non-empty array" });
+      }
 
-        await studentPOST(gradex, email, room, fileIds, name);
+      if (pdfTypes.length !== files.length) {
+          return res.status(400).json({ error: "Number of pdfNames must match number of files" });
+      }
 
-        const savedData = await studentGETByGrade(gradex, email);
+      // Upload files and map to types
+      const fileIds = [];
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const typeName = pdfTypes[i] || `File ${i + 1}`;
+          try {
+              const id = await uploadPDF(file, email);
+              fileIds.push({ id, type: typeName, status: "Pending" });
+          } catch (uploadErr) {
+              console.error("File upload failed:", file.originalname, uploadErr);
+              return res.status(500).json({ error: `Failed to upload file: ${file.originalname}` });
+          }
+      }
 
-        const success = await sendEmail(
-            email,
-            'Signup Pending',
-            `<div style="font-family: sans-serif; line-height: 1.5;">
-            <h2>Hello ${name},</h2>
-            <p>We have received your submission</p>
-            <br/>
-            <p>The Village Tech Team</p>
-            </div>`
-        );
+      await studentPOST(gradex, email, room, fileIds, name);
 
-        if(!success.success){
-            throw new Error("Email could not be sent to ", email);
-        }
-        res.status(201).json({
-        submissionId: savedData._id,
-        message: "Student record saved and confirmation email sent.",
-        grade: gradex,
-        email,
-        room,
-        name,
-        fileIds,
-        });
+      const savedData = await studentGETByGrade(gradex, email);
 
-    } catch (err) {
-        console.error("Error in studentPOST:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+      const success = await sendEmail(
+          email,
+          'Signup Pending',
+          `<div style="font-family: sans-serif; line-height: 1.5;">
+              <h2>Hello ${name},</h2>
+              <p>We have received your submission</p>
+              <br/>
+              <p>The Village Tech Team</p>
+          </div>`
+      );
+
+      if (!success.success) {
+          throw new Error(`Email could not be sent to ${email}`);
+      }
+
+      res.status(201).json({
+          submissionId: savedData._id,
+          message: "Student record saved and confirmation email sent.",
+          grade: gradex,
+          email,
+          room,
+          name,
+          fileIds,
+      });
+
+  } catch (err) {
+      console.error("Error in postStudent:", err);
+      res.status(500).json({ error: "Internal server error" });
+  }
 }
+
 
 export async function getStudentByGrade(req, res) {
     try {
