@@ -1,13 +1,14 @@
-import { 
-  pushComment, 
-  studentGETById, 
-  updateStudentSubmissionById, 
-  downloadPDF, 
-  submissionsGET, 
-  getPDFMetadata, 
-  fetchComments, 
+import {
+  pushComment,
+  studentGETById,
+  updateStudentSubmissionById,
+  downloadPDF,
+  submissionsGET,
+  getPDFMetadata,
+  fetchComments,
   postGradeConfig,
-  fetchGradeConfig
+  fetchGradeConfig,
+  updateFileStatus
  } from "./service.js";
 import { sendEmail } from "../utils/sendMail.js";
 
@@ -84,27 +85,26 @@ export async function getSubmissions(req, res) {
           const populated = { ...submission, filesData: [] };
 
           console.log(submission);
-    
+
           if (Array.isArray(submission.files) && submission.files.length > 0) {
               for (const fileId of submission.files) {
               try {;
                   const pdfBuffer = await downloadPDF(fileId.id);
                   populated.filesData.push({
-                  fileId,
-                  fileName : (await getPDFMetadata(fileId.id))?.filename || "unknown.pdf",
+                  fileId: fileId.id,
+                  pdfType: (await getPDFMetadata(fileId.id))?.filename || "unknown.pdf",
                   base64: pdfBuffer.toString("base64"),
-                  mimeType: "application/pdf",
                   });
               } catch (err) {
                   console.warn(`⚠️ Failed to download file ${fileId.id}:`, err.message);
                   populated.filesData.push({
-                  fileId,
+                  fileId: fileId.id,
                   error: "Failed to retrieve file from GridFS",
                   });
               }
               }
           }
-      
+
           populatedSubmissions.push(populated);
         }
     
@@ -202,5 +202,32 @@ export async function getGradeConfig(req, res) {
   } catch (err) {
     console.error("Error fetching grade config:", err);
     res.status(500).json({ success: false, error: err.message || err });
+  }
+}
+
+export async function manageFileStatus(req, res) {
+  try {
+    const { submissionId, fileId, status } = req.query;
+    console.log("manageFileStatus called with:", { submissionId, fileId, status });
+
+    if (!submissionId || !fileId || !status) {
+      return res.status(400).json({ success: false, error: "Missing required parameters: submissionId, fileId, status" });
+    }
+
+    const validStatuses = ['Pending', 'Correct', 'Incorrect'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: "Invalid status. Must be one of: Pending, Correct, Incorrect" });
+    }
+
+    const updated = await updateFileStatus(submissionId, fileId, status);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Submission or file not found' });
+    }
+
+    console.log(`Updated file status for submission ${submissionId}, file ${fileId} to ${status}`);
+    res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("Error updating file status:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 }

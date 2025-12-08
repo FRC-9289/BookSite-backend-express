@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { manageStatus, getSubmissions, addComment, getComments,createGradeConfig, getGradeConfig } from "./controller.js";
+import { manageStatus, getSubmissions, addComment, getComments, createGradeConfig, getGradeConfig, manageFileStatus } from "./controller.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = new Router();

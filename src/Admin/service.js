@@ -158,3 +158,37 @@ export async function fetchGradeConfig(grade) {
 
   return config;
 }
+
+export async function updateFileStatus(submissionId, fileId, status) {
+  const db = await initStudentDB();
+  const collection = db.collection("data");
+
+  // First, check if the submission exists and the fileId is in the files array
+  const submission = await collection.findOne(
+    { _id: new ObjectId(submissionId), "files.id": fileId },
+    { projection: { _id: 1, fileStatuses: 1 } }
+  );
+
+  if (!submission) {
+    throw new Error("Submission not found or file not associated with submission");
+  }
+
+  // Update or set the file status
+  const update = {
+    $set: {
+      [`fileStatuses.${fileId}`]: status,
+      updatedAt: new Date()
+    }
+  };
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(submissionId) },
+    update
+  );
+
+  if (result.matchedCount === 0) {
+    throw new Error("No submission found with the given ID");
+  }
+
+  return result;
+}
