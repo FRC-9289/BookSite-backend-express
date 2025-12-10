@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { manageStatus, getSubmissions, addComment, getComments,createGradeConfig, getGradeConfig } from "./controller.js";
+import { manageStatus, getSubmissions, addComment, getComments, createGradeConfig, getGradeConfig, manageFileStatus } from "./controller.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = new Router();
@@ -21,5 +21,8 @@ router.post("/create-grade-config", authMiddleware, createGradeConfig);
 
 // Get grade config
 router.get("/get-grade-config", authMiddleware, getGradeConfig);
+
+// Manage file status
+router.patch("/manage-file-status", authMiddleware, manageFileStatus);
 
 export default router;
