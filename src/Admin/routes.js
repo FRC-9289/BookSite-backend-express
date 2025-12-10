@@ -22,4 +22,7 @@ router.post("/create-grade-config", authMiddleware, createGradeConfig);
 // Get grade config
 router.get("/get-grade-config", authMiddleware, getGradeConfig);
 
+// Manage file status
+router.patch("/manage-file-status", authMiddleware, manageFileStatus);
+
 export default router;

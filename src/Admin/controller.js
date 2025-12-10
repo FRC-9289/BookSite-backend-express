@@ -92,7 +92,8 @@ export async function getSubmissions(req, res) {
                   const pdfBuffer = await downloadPDF(fileId.id);
                   populated.filesData.push({
                   fileId: fileId.id,
-                  pdfType: (await getPDFMetadata(fileId.id))?.filename || "unknown.pdf",
+                  status: fileId.status,
+                  pdfType: fileId.type || "unknown.pdf",
                   base64: pdfBuffer.toString("base64"),
                   });
               } catch (err) {
